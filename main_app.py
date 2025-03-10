@@ -17,6 +17,8 @@ import subprocess
 import sys
 import atexit
 
+from modules.chk_db import *
+
 # Global process variable for key_listener.py
 key_listener_process = None
 settings_active = False  # Flag to track if settings page is in focus
@@ -24,11 +26,11 @@ settings_active = False  # Flag to track if settings page is in focus
 def start_key_listener():
     """Start key_listener.py in the background using the same Python interpreter."""
     global key_listener_process
-    if not os.path.exists("key_listener.py"):
+    if not os.path.exists("modules/key_listener.py"):
         print("Error: key_listener.py not found in current directory")
         return
     python_executable = sys.executable
-    key_listener_process = subprocess.Popen([python_executable, "key_listener.py"])
+    key_listener_process = subprocess.Popen([python_executable, "modules/key_listener.py"])
     print(f"Started key_listener.py in background with PID: {key_listener_process.pid}")
 
 def stop_key_listener():
@@ -87,21 +89,10 @@ keybinds = DEFAULT_KEYBINDS.copy()
 pending_keybinds = keybinds.copy()
 
 # Default app name
-DEFAULT_APP_NAME = "Action Recorder"
+DEFAULT_APP_NAME = "Anti-Idle"
 
-# GUI variables
-status_var = None
-app_name_var = None
-root = None
-main_frame = None
-settings_frame = None
-sequence_frame = None
-icon = None
-mouse_listener = None
-keyboard_listener = None
-title_label = None
+# ========================== Functions for mouse/keyboard events recording ==============================
 
-# Functions for mouse/keyboard events recording
 def on_move(x, y):
     if recording:
         events.append(('move', (x, y), time.time()))
@@ -118,7 +109,7 @@ def on_release(key):
     if recording:
         events.append(('key_release', key, time.time()))
 
-# Record and playback functions
+# ============================== Record and playback functions ===================================
 def start_recording():
     global recording, current_sequence_name
     if not recording:
@@ -208,7 +199,7 @@ def end_task():
         keyboard_ctrl.release(key)
     print("end_task executed")
 
-# File operations for sequences
+# ========================== File operations for sequences =======================================================
 def save_sequence():
     global current_sequence_name
     if not events:
@@ -311,7 +302,7 @@ def refresh_sequence_list():
     else:
         ttk.Label(sequence_frame, text="No saved sequences found", bootstyle="secondary").pack(pady=20)
 
-# Keybind management
+# =================================== Keybind management ====================================================
 def save_keybinds_to_file():
     app_data = {"app_name": app_name_var.get(), "keybinds": keybinds}
     with open(KEYBINDS_FILE, 'w') as f:
@@ -428,38 +419,7 @@ def update_keybind_labels():
                     modifier, key = pending_keybinds[full_action]
                     keybind_label.config(text=f"{modifier}+{key}")
 
-# Navigation functions
-def show_settings():
-    global settings_active
-    main_frame.pack_forget()
-    sequence_frame.pack_forget()
-    settings_frame.pack(expand=True, fill=BOTH, padx=5, pady=5)
-    settings_active = True
-    with open("pause_listener.trigger", "w") as f:
-        f.write("")  # Create pause signal for key_listener.py
-    print("Settings page shown, triggers paused")
-
-def show_main():
-    global settings_active
-    settings_frame.pack_forget()
-    sequence_frame.pack_forget()
-    main_frame.pack(expand=True, fill=BOTH, padx=5, pady=5)
-    settings_active = False
-    if os.path.exists("pause_listener.trigger"):
-        os.remove("pause_listener.trigger")
-    print("Main page shown, triggers resumed")
-
-def show_sequences():
-    global settings_active
-    main_frame.pack_forget()
-    settings_frame.pack_forget()
-    sequence_frame.pack(expand=True, fill=BOTH, padx=5, pady=5)
-    settings_active = False
-    if os.path.exists("pause_listener.trigger"):
-        os.remove("pause_listener.trigger")
-    print("Sequences page shown, triggers resumed")
-
-# Window management
+# =============================== Window management =====================================
 def start_drag(event):
     root.x = event.x
     root.y = event.y
@@ -515,10 +475,10 @@ def show_app(icon=None):
 def check_for_triggers():
     global settings_active
     if settings_active:
-        print("Triggers paused (settings active)")
+        # print("Triggers paused (settings active)")
         root.after(100, check_for_triggers)
         return
-    print("Checking triggers...")
+    # print("Checking triggers...")
     for command in ["start_recording", "stop_recording", "start_task", "end_task"]:
         trigger_file = f"{command}.trigger"
         if os.path.exists(trigger_file):
@@ -531,9 +491,61 @@ def check_for_triggers():
                 print(f"Error executing triggered command {command}: {e}")
     root.after(100, check_for_triggers)
 
+# ================================= Navigation functions ===================================
+def show_main():
+    global settings_active
+    settings_frame.pack_forget()
+    sequence_frame.pack_forget()
+    main_frame.pack(expand=True, fill=BOTH, padx=5, pady=5)
+    settings_active = False
+    if os.path.exists("pause_listener.trigger"):
+        os.remove("pause_listener.trigger")
+    print("Main page shown, triggers resumed")
+
+def show_sequences():
+    global settings_active
+    main_frame.pack_forget()
+    settings_frame.pack_forget()
+    sequence_frame.pack(expand=True, fill=BOTH, padx=5, pady=5)
+    settings_active = False
+    if os.path.exists("pause_listener.trigger"):
+        os.remove("pause_listener.trigger")
+    print("Sequences page shown, triggers resumed")
+
+def show_settings():
+    global settings_active
+    main_frame.pack_forget()
+    sequence_frame.pack_forget()
+    info_frm.pack_forget()
+    settings_frame.pack(expand=True, fill=BOTH, padx=5, pady=5)
+    settings_active = True
+    with open("pause_listener.trigger", "w") as f:
+        f.write("")  # Create pause signal for key_listener.py
+    print("Settings page shown, triggers paused")
+
+def show_info():
+    main_frame.pack_forget()
+    sequence_frame.pack_forget()
+    settings_frame.pack_forget()
+    info_frm.pack(expand=True, fill=BOTH, padx=5, pady=5)
+
+# ========================================== GUI variables ==============================================
+status_var = None
+app_name_var = None
+root = None
+main_frame = None
+settings_frame = None
+sequence_frame = None
+info_frm = None
+icon = None
+mouse_listener = None
+keyboard_listener = None
+title_label = None
+serial_k = None
+
 def create_gui():
-    global status_var, app_name_var, root, main_frame, settings_frame, sequence_frame
-    global title_label, sequence_title_frame, mouse_listener, keyboard_listener
+    global status_var, app_name_var, root, main_frame, settings_frame, sequence_frame, serial_k
+    global title_label, sequence_title_frame, mouse_listener, keyboard_listener, info_frm
     
     root = ttk.Window(themename='darkly')
     root.geometry("200x255")
@@ -597,16 +609,27 @@ def create_gui():
     
     btn_frame = ttk.Frame(settings_frame)
     btn_frame.pack(pady=5)
-    ttk.Button(btn_frame, text="Apply", command=apply_keybinds, bootstyle=SUCCESS).pack(side=LEFT, padx=2)
-    ttk.Button(btn_frame, text="Default", command=reset_to_defaults, bootstyle=WARNING).pack(side=LEFT, padx=2)
-    ttk.Button(btn_frame, text="Back", command=show_main, bootstyle=SECONDARY).pack(side=LEFT, padx=2)
+    ttk.Button(btn_frame, text="Apply", command=apply_keybinds, bootstyle=SUCCESS).grid(row=0, column=0, padx=2)
+    ttk.Button(btn_frame, text="Default", command=reset_to_defaults, bootstyle=WARNING).grid(row=0, column=1, padx=2)
+    ttk.Button(btn_frame, text="Back", command=show_main, bootstyle=SECONDARY).grid(row=0, column=2, padx=2)
+    ttk.Button(btn_frame, text="i", command=show_info, bootstyle=SECONDARY).grid(row=1, column=2, padx=2, pady=20)
     
+    info_frm = ttk.Frame(root)
+    info_frm.grid_columnconfigure(0, weight=1)
+    ttk.Label(info_frm, text='Activate').grid(row=0, column=0, padx=5, pady=5)
+    serial_k = ttk.StringVar()
+    ttk.Entry(info_frm, width=50, textvariable=serial_k).grid(row=1, column=0, padx=5, pady=5)
+    ttk.Button(info_frm, text='Run', command=connect2db).grid(row=2, column=0, padx=5, pady=5)
+    ttk.Button(info_frm, text='Back', width=5, padding=(2,2), command=show_settings).grid(row=3, column=0, pady=(70,0), sticky='e')
+
+
     sequence_frame = ttk.Frame(root)
     sequence_title_frame = ttk.Frame(sequence_frame)
     sequence_title_frame.pack(fill=X, pady=5)
     ttk.Label(sequence_title_frame, text="Saved Sequences", font=("Arial", 10, "bold")).pack(side=LEFT)
     ttk.Button(sequence_title_frame, text="↻", width=2, command=refresh_sequence_list, bootstyle=INFO).pack(side=RIGHT, padx=2)
     ttk.Button(sequence_title_frame, text="Back", command=show_main, bootstyle=SECONDARY).pack(side=RIGHT, padx=2)
+
     
     for key in [Key.shift_l, Key.shift_r, Key.ctrl_l, Key.ctrl_r, Key.alt_l, Key.alt_r]:
         keyboard_ctrl.release(key)
@@ -625,7 +648,6 @@ def create_gui():
     root.mainloop()
 
 if __name__ == "__main__":
-    print("Requirements: pip install ttkbootstrap pynput pystray pillow")
     if not os.path.exists(default_save_dir):
         os.makedirs(default_save_dir)
     create_gui()

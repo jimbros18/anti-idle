@@ -41,7 +41,7 @@ def load_keybinds():
     
     current_modified = os.path.getmtime(KEYBINDS_FILE)
     if current_modified == last_modified:
-        print("No changes to keybinds file")
+        # print("No changes to keybinds file")
         return True
     
     try:
@@ -134,7 +134,7 @@ def main():
     with Listener(on_press=on_press, on_release=on_release) as listener:
         while listener.running:
             if is_paused():
-                print("Key listener paused")
+                # print("Key listener paused")
                 time.sleep(1)  # Reduce CPU usage while paused
             else:
                 time.sleep(0.1)  # Small sleep to avoid tight loop when active

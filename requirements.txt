@@ -1,0 +1,5 @@
+ttkbootstrap 
+pynput 
+pystray 
+pillow
+requests
