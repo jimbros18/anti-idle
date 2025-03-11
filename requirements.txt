@@ -3,3 +3,4 @@ pynput
 pystray 
 pillow
 requests
+dotenv
