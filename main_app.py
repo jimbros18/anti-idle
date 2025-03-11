@@ -17,7 +17,7 @@ import subprocess
 import sys
 import atexit
 
-from modules.chk_db import *
+from modules.chk_db import connect2db
 
 # Global process variable for key_listener.py
 key_listener_process = None
@@ -541,7 +541,7 @@ icon = None
 mouse_listener = None
 keyboard_listener = None
 title_label = None
-serial_k = None
+ser_key = None
 
 def create_gui():
     global status_var, app_name_var, root, main_frame, settings_frame, sequence_frame, serial_k
@@ -617,9 +617,9 @@ def create_gui():
     info_frm = ttk.Frame(root)
     info_frm.grid_columnconfigure(0, weight=1)
     ttk.Label(info_frm, text='Activate').grid(row=0, column=0, padx=5, pady=5)
-    serial_k = ttk.StringVar()
-    ttk.Entry(info_frm, width=50, textvariable=serial_k).grid(row=1, column=0, padx=5, pady=5)
-    ttk.Button(info_frm, text='Run', command=connect2db).grid(row=2, column=0, padx=5, pady=5)
+    ser_key = ttk.StringVar()
+    ttk.Entry(info_frm, width=50, textvariable=ser_key).grid(row=1, column=0, padx=5, pady=5)
+    ttk.Button(info_frm, text='Run', command=lambda:connect2db(ser_key.get())).grid(row=2, column=0, padx=5, pady=5)
     ttk.Button(info_frm, text='Back', width=5, padding=(2,2), command=show_settings).grid(row=3, column=0, pady=(70,0), sticky='e')
 
 
