@@ -2,3 +2,4 @@ modules/__pycache__
 saved_sequences/
 .env
 keybinds.json
+serial_key.txt

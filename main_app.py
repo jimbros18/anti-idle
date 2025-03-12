@@ -17,7 +17,7 @@ import subprocess
 import sys
 import atexit
 
-from modules.chk_db import connect2db
+from modules.chk_db import *
 
 # Global process variable for key_listener.py
 key_listener_process = None
@@ -517,6 +517,7 @@ def show_settings():
     main_frame.pack_forget()
     sequence_frame.pack_forget()
     info_frm.pack_forget()
+    act_frm.pack_forget()
     settings_frame.pack(expand=True, fill=BOTH, padx=5, pady=5)
     settings_active = True
     with open("pause_listener.trigger", "w") as f:
@@ -524,10 +525,32 @@ def show_settings():
     print("Settings page shown, triggers paused")
 
 def show_info():
+    content = find_txt()
+    if content:
+        activate(content)
+    else:    
+        main_frame.pack_forget()
+        sequence_frame.pack_forget()
+        settings_frame.pack_forget()
+        info_frm.pack(expand=True, fill=BOTH, padx=5, pady=5)
+
+def activate_btn(ser_key):
+    key = connect2db(ser_key)
+    content = find_txt()
+    if key is not None:
+        activate(content)
+    else:
+        info_lbl.config(text='Invalid serial key!')
+
+
+def activate(content):
     main_frame.pack_forget()
     sequence_frame.pack_forget()
     settings_frame.pack_forget()
-    info_frm.pack(expand=True, fill=BOTH, padx=5, pady=5)
+    info_frm.pack_forget()
+    act_frm.pack(expand=True, fill=BOTH, padx=5, pady=5)
+    sk_entry.insert(0,content )
+    
 
 # ========================================== GUI variables ==============================================
 status_var = None
@@ -542,10 +565,14 @@ mouse_listener = None
 keyboard_listener = None
 title_label = None
 ser_key = None
+act_frm = None
+sk_entry = None
+act_lbl = None
+info_lbl = None
 
 def create_gui():
-    global status_var, app_name_var, root, main_frame, settings_frame, sequence_frame, serial_k
-    global title_label, sequence_title_frame, mouse_listener, keyboard_listener, info_frm
+    global status_var, app_name_var, root, main_frame, settings_frame, sequence_frame, ser_key, sk_entry, info_lbl
+    global title_label, sequence_title_frame, mouse_listener, keyboard_listener, info_frm, act_frm, act_lbl
     
     root = ttk.Window(themename='darkly')
     root.geometry("200x255")
@@ -616,13 +643,22 @@ def create_gui():
     
     info_frm = ttk.Frame(root)
     info_frm.grid_columnconfigure(0, weight=1)
-    ttk.Label(info_frm, text='Activate').grid(row=0, column=0, padx=5, pady=5)
+    info_lbl = ttk.Label(info_frm, text='Activate')
+    info_lbl.grid(row=0, column=0, padx=5, pady=5)
     ser_key = ttk.StringVar()
     ttk.Entry(info_frm, width=50, textvariable=ser_key).grid(row=1, column=0, padx=5, pady=5)
-    ttk.Button(info_frm, text='Run', command=lambda:connect2db(ser_key.get())).grid(row=2, column=0, padx=5, pady=5)
+    ttk.Button(info_frm, text='Run', command=lambda:activate_btn(ser_key.get())).grid(row=2, column=0, padx=5, pady=5)
     ttk.Button(info_frm, text='Back', width=5, padding=(2,2), command=show_settings).grid(row=3, column=0, pady=(70,0), sticky='e')
 
-
+    act_frm = ttk.Frame(root)
+    act_frm.grid_columnconfigure(0, weight=1)
+    act_lbl = ttk.Label(act_frm, text='App Activated')
+    act_lbl.grid(row=0, column=0, padx=5, pady=5)
+    ttk.Label(act_frm, text='Serial Key').grid(row=1, column=0, padx=5, pady=5)
+    sk_entry = ttk.Entry(act_frm)
+    sk_entry.grid(row=2, column=0, padx=5, pady=5)
+    ttk.Button(act_frm, text="Back", command=show_settings, bootstyle=SECONDARY).grid(row=3, column=0, padx=2)
+    
     sequence_frame = ttk.Frame(root)
     sequence_title_frame = ttk.Frame(sequence_frame)
     sequence_title_frame.pack(fill=X, pady=5)
