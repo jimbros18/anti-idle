@@ -17,7 +17,7 @@ import subprocess
 import sys
 import atexit
 
-from modules.chk_db import *
+from modules.ask_server import *
 
 # Global process variable for key_listener.py
 key_listener_process = None
@@ -61,7 +61,7 @@ playing = False
 
 # Current sequence name (for saving)
 current_sequence_name = "Untitled"
-default_save_dir = "saved_sequences"
+default_save_dir = "client/saved_sequences"
 
 # Time to wait between loops (in seconds)
 LOOP_INTERVAL = 5
@@ -82,7 +82,7 @@ DEFAULT_KEYBINDS = {
 }
 
 # File to store keybinds
-KEYBINDS_FILE = "keybinds.json"
+KEYBINDS_FILE = "client/keybinds.json"
 
 # Current keybinds (modifiable)
 keybinds = DEFAULT_KEYBINDS.copy()
@@ -498,8 +498,8 @@ def show_main():
     sequence_frame.pack_forget()
     main_frame.pack(expand=True, fill=BOTH, padx=5, pady=5)
     settings_active = False
-    if os.path.exists("pause_listener.trigger"):
-        os.remove("pause_listener.trigger")
+    if os.path.exists("client/pause_listener.trigger"):
+        os.remove("client/pause_listener.trigger")
     print("Main page shown, triggers resumed")
 
 def show_sequences():
@@ -508,8 +508,8 @@ def show_sequences():
     settings_frame.pack_forget()
     sequence_frame.pack(expand=True, fill=BOTH, padx=5, pady=5)
     settings_active = False
-    if os.path.exists("pause_listener.trigger"):
-        os.remove("pause_listener.trigger")
+    if os.path.exists("client/pause_listener.trigger"):
+        os.remove("client/pause_listener.trigger")
     print("Sequences page shown, triggers resumed")
 
 def show_settings():
@@ -520,7 +520,7 @@ def show_settings():
     act_frm.pack_forget()
     settings_frame.pack(expand=True, fill=BOTH, padx=5, pady=5)
     settings_active = True
-    with open("pause_listener.trigger", "w") as f:
+    with open("client/pause_listener.trigger", "w") as f:
         f.write("")  # Create pause signal for key_listener.py
     print("Settings page shown, triggers paused")
 
@@ -535,11 +535,12 @@ def show_info():
         info_frm.pack(expand=True, fill=BOTH, padx=5, pady=5)
 
 def activate_btn(ser_key):
-    key = connect2db(ser_key)
+    key = connect(ser_key)
     content = find_txt()
     if key is not None:
         activate(content)
     else:
+        print(key)
         info_lbl.config(text='Invalid serial key!')
 
 
@@ -549,8 +550,14 @@ def activate(content):
     settings_frame.pack_forget()
     info_frm.pack_forget()
     act_frm.pack(expand=True, fill=BOTH, padx=5, pady=5)
-    sk_entry.insert(0,content )
+    sk_entry.insert(0,str(content))
     
+def find_txt():
+    file_path = 'client/serial_key.txt'
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding="utf-8") as file:
+            content = file.read()
+            return content
 
 # ========================================== GUI variables ==============================================
 status_var = None

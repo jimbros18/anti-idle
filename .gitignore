@@ -1,5 +1,6 @@
-modules/__pycache__
-saved_sequences/
+client/modules/__pycache__
+client/saved_sequences/
 .env
-keybinds.json
-serial_key.txt
+client/keybinds.json
+client/serial_key.txt
+client/pause_listener.trigger

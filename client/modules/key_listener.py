@@ -6,7 +6,7 @@ from pynput import keyboard
 from pynput.keyboard import Key, Listener
 
 # File with keybinds
-KEYBINDS_FILE = "keybinds.json"
+KEYBINDS_FILE = "client/keybinds.json"
 # Command names that will be executed
 COMMANDS = {
     "start_record": "start_recording",

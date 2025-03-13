@@ -1,0 +1,38 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run FastAPI Server",
+      "type": "shell",
+      "command": "uvicorn server:app --reload",
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "Run app",
+      "type": "shell",
+      "command": "python client/app.py",
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "Run Both",
+      "type": "shell",
+      "command": "uvicorn server:app --reload & sleep 2 && python app.py",
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "shared",
+        "showReuseMessage": false
+      }
+    }
+  ]
+}
