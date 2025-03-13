@@ -26,11 +26,11 @@ settings_active = False  # Flag to track if settings page is in focus
 def start_key_listener():
     """Start key_listener.py in the background using the same Python interpreter."""
     global key_listener_process
-    if not os.path.exists("modules/key_listener.py"):
+    if not os.path.exists("client/modules/key_listener.py"):
         print("Error: key_listener.py not found in current directory")
         return
     python_executable = sys.executable
-    key_listener_process = subprocess.Popen([python_executable, "modules/key_listener.py"])
+    key_listener_process = subprocess.Popen([python_executable, "client/modules/key_listener.py"])
     print(f"Started key_listener.py in background with PID: {key_listener_process.pid}")
 
 def stop_key_listener():

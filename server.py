@@ -2,48 +2,62 @@ from dotenv import load_dotenv
 import os
 import requests
 import json
-
 from fastapi import FastAPI, HTTPException
-app = FastAPI()  # Make sure this is defined
+from pydantic import BaseModel  # For type validation
 
-# @app.get("/")
-# def home():
-#     return {"message": "Server is running!"}
+app = FastAPI()
 
+# Define a model for the expected request body
+class ValidationRequest(BaseModel):
+    key: int
+    hw_id: str
+
+# Load environment variables
 load_dotenv()
-print("🔗 DB_URL:", os.getenv("DB_URL"))
-print("🔑 TBL_TOKEN_KEY:", os.getenv("TBL_TOKEN_KEY"))
+DB_URL = os.getenv("DB_URL")
+TBL_TOKEN_KEY = os.getenv("TBL_TOKEN_KEY")
 
-token = os.getenv("TBL_TOKEN_KEY")
-url = os.getenv("DB_URL")
-if not token or not url:
+
+if not TBL_TOKEN_KEY or not DB_URL:
     raise RuntimeError("❌ Missing environment variables: TBL_TOKEN_KEY or DB_URL")
 
 headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json"
-        }
+    "Authorization": f"Bearer {TBL_TOKEN_KEY}",
+    "Content-Type": "application/json"
+}
 
-@app.get("/validate/{key}")
-def validate_key(key):
-    print(f"🔍 Checking Key: {key}")
+@app.post("/validate")  # Changed to POST to accept a body
+def validate_key(request: ValidationRequest):  # Use the model for the request body
+    key = request.key
+    hw_id = request.hw_id
+    print(f"🔍 Checking Key: {key}, Hardware ID: {hw_id}")
 
     payload = {
         "requests": [
             {
                 "type": "execute",
                 "stmt": {
-                    "sql": "SELECT * FROM test_main_data WHERE id = ?",
+                    "sql": "SELECT * FROM anti_idle_app WHERE id = ?",
                     "args": [{"type": "integer", "value": str(key)}]
+                }
+            },
+            {
+                "type": "execute",
+                "stmt": {
+                    "sql": "UPDATE anti_idle_app SET hw_id = ? WHERE id = ?",
+                    "args": [
+                        {"type": "text", "value": hw_id},  # Use the client-provided hw_id
+                        {"type": "integer", "value": str(key)}
+                    ]
                 }
             }
         ]
     }
 
     try:
-        print(f"📤 Sending to {url}: {json.dumps(payload, indent=2)}")
+        print(f"📤 Sending to {DB_URL}: {json.dumps(payload, indent=2)}")
         print(f"📤 Headers: {headers}")
-        response = requests.post(url, headers=headers, json=payload)
+        response = requests.post(DB_URL, headers=headers, json=payload)
         print(f"📥 Response: {response.text}")
         response.raise_for_status()
 
@@ -76,7 +90,7 @@ def validate_key(key):
         if serial_key != "UNKNOWN":
             os.makedirs("client", exist_ok=True)
             with open('client/serial_key.txt', 'w', encoding="utf-8") as file:
-                file.write(serial_key)
+                file.write(str(serial_key))
 
         print("✅ s_key:", serial_key)
         return {"s_key": serial_key}

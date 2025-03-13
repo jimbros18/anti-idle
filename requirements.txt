@@ -4,3 +4,7 @@ pystray
 pillow
 requests
 dotenv
+fastapi
+uvicorn
+wmi
+cryptography
