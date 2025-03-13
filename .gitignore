@@ -1,4 +1,4 @@
-client/modules/__pycache__
+__pycache__
 client/saved_sequences/
 .env
 client/keybinds.json
