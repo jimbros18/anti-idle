@@ -1,6 +1,141 @@
 import requests
 import wmi
+from datetime import datetime
+import ctypes
+import os
 
+TRIAL_FILE = "client/cache.txt"
+
+def set_hidden_windows(file_path):
+    """Set the hidden attribute on Windows."""
+    try:
+        ctypes.windll.kernel32.SetFileAttributesW(file_path, 2)  # 2 = FILE_ATTRIBUTE_HIDDEN
+        print(f"Set {file_path} as hidden", flush=True)
+    except Exception as e:
+        print(f"Error hiding file: {e}", flush=True)
+
+def read_txt():
+    try:
+        if not os.path.isfile(TRIAL_FILE):
+            print(f"Error: {TRIAL_FILE} does not exist or is not a file!")
+            return
+        
+        with open(TRIAL_FILE, "r", encoding="utf-8") as f:
+            txt_content = f.read()
+        print(f"content: {txt_content}")
+        return txt_content
+    except Exception as e:
+        print(f"Error: {e}")
+
+
+def get_hardware_ids():
+    try:
+        c = wmi.WMI()
+        hardware_ids = []
+        
+        # Motherboard
+        for board in c.Win32_BaseBoard():
+            hardware_ids.append(board.SerialNumber.strip() if board.SerialNumber else "Not Available")
+        
+        # CPU
+        for cpu in c.Win32_Processor():
+            hardware_ids.append(cpu.ProcessorId.strip() if cpu.ProcessorId else "Not Available")
+        
+        # RAM
+        ram_ids = [ram.SerialNumber.strip() if ram.SerialNumber else "Not Available" for ram in c.Win32_PhysicalMemory()]
+        hardware_ids.extend(ram_ids if ram_ids else ["Not Available"])
+        
+        # Disk
+        disk_ids = [disk.SerialNumber.strip() if disk.SerialNumber else "Not Available" for disk in c.Win32_DiskDrive()]
+        hardware_ids.extend(disk_ids if disk_ids else ["Not Available"])
+        
+        # BIOS
+        for bios in c.Win32_BIOS():
+            hardware_ids.append(bios.SerialNumber.strip() if bios.SerialNumber else "Not Available")
+        
+        # Network
+        net_ids = [net.MACAddress.strip() for net in c.Win32_NetworkAdapter() if net.MACAddress]
+        hardware_ids.extend(net_ids if net_ids else ["Not Available"])
+        
+        # GPU
+        gpu_ids = [gpu.PNPDeviceID.strip() if gpu.PNPDeviceID else "Not Available" for gpu in c.Win32_VideoController()]
+        hardware_ids.extend(gpu_ids if gpu_ids else ["Not Available"])
+        
+        if not hardware_ids:
+            return None
+        
+        # Join all IDs with '|'
+        joined_hw_id = "|".join(hardware_ids)
+        # print("Generated hw_id:", joined_hw_id)
+        return joined_hw_id
+
+    except Exception as e:
+        print(f"Error retrieving hardware IDs: {e}")
+        return None
+
+    except Exception as e:
+        print(f"Error retrieving hardware IDs: {e}")
+        return None
+
+def register_device():
+    API_URL = "http://127.0.0.1:8000/reg_dev"
+    hw_id = get_hardware_ids()
+    date_reg = datetime.now().isoformat()
+    last_server_con = datetime.now().isoformat()
+
+    if not hw_id:
+        print("❌ Failed to generate hardware ID")
+        return None
+
+    payload = {"hw_id": hw_id, 'reg':date_reg, 'server_con': last_server_con}
+
+    try:
+        response = requests.post(API_URL, json=payload, timeout=5)
+        response.raise_for_status()  # Raises an error for HTTP issues
+
+        try:
+            data = response.json()
+            print(f"client: {data}", flush=True)
+            if "last_server_con" in data:
+                os.makedirs("client", exist_ok=True)
+                with open(TRIAL_FILE, "w") as f:
+                    f.write(f"{data}")
+                set_hidden_windows(TRIAL_FILE)  # Hide the file
+                print(f"data saved: {data}", flush=True)
+            return data
+        except ValueError:
+            print("❌ Invalid JSON response from server!")
+            return None
+        
+    except requests.exceptions.Timeout:
+        print("❌ Request timed out")
+        return None
+    
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Server Error: {e}")
+        return None
+
+def update_lastcon():
+    hw_id: str = get_hardware_ids()
+    user_cur_date = datetime.now().isoformat()
+    if hw_id is None:
+        print("❌ Failed to get hardware IDs")
+        return None
+    
+    API_URL = "http://127.0.0.1:8000/lastcon"
+    payload = {"hw_id": hw_id, "date": user_cur_date}
+    # print(f"Sending: {payload}")
+    try:
+        response = requests.post(API_URL, json=payload)
+        response.raise_for_status()
+        data = response.json()
+        print(f"client: {data}")
+        return f"client: {data}"
+    
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Server Error: {e}")
+        return None
+    
 def connect(key):
     API_URL = "http://127.0.0.1:8000/validate"
     hw_id = get_hardware_ids()
@@ -33,40 +168,4 @@ def connect(key):
         print(f"❌ Server Error: {e}")
         return None
 
-def get_hardware_ids():
-    try:
-        c = wmi.WMI()
-        hardware_info = {}
-        
-        for board in c.Win32_BaseBoard():
-            hardware_info['Motherboard_ID'] = board.SerialNumber.strip() if board.SerialNumber else "Not Available"
-        for cpu in c.Win32_Processor():
-            hardware_info['CPU_ID'] = cpu.ProcessorId.strip() if cpu.ProcessorId else "Not Available"
-        ram_ids = [ram.SerialNumber.strip() if ram.SerialNumber else "Not Available" for ram in c.Win32_PhysicalMemory()]
-        hardware_info['RAM_IDs'] = ram_ids if ram_ids else ['Not Available']
-        disk_ids = [disk.SerialNumber.strip() if disk.SerialNumber else "Not Available" for disk in c.Win32_DiskDrive()]
-        hardware_info['Disk_IDs'] = disk_ids if disk_ids else ['Not Available']
-        for bios in c.Win32_BIOS():
-            hardware_info['BIOS_ID'] = bios.SerialNumber.strip() if bios.SerialNumber else "Not Available"
-        net_ids = [net.MACAddress.strip() for net in c.Win32_NetworkAdapter() if net.MACAddress]
-        hardware_info['Network_IDs'] = net_ids if net_ids else ['Not Available']
-        gpu_ids = [gpu.PNPDeviceID.strip() if gpu.PNPDeviceID else "Not Available" for gpu in c.Win32_VideoController()]
-        hardware_info['GPU_IDs'] = gpu_ids if gpu_ids else ['Not Available']
-        
-        if not hardware_info:
-            return None
-        
-        joined_hw_id = "|".join(
-            str(value) if not isinstance(value, list) else ";".join(map(str, value))
-            for value in hardware_info.values()
-        )
-        print("Generated hw_id:", joined_hw_id)
-        return joined_hw_id
 
-    except Exception as e:
-        print(f"Error retrieving hardware IDs: {e}")
-        return None
-
-if __name__ == "__main__":
-    result = connect(123)
-    print(f"Result: {result}")

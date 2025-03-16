@@ -685,6 +685,9 @@ def create_gui():
     start_key_listener()
     load_keybinds_from_file()
     check_for_triggers()
+    # register_device()
+    # update_lastcon()
+    read_txt()
     
     root.attributes('-topmost', True)
     root.after(100, lambda: root.attributes('-topmost', False))
@@ -694,3 +697,4 @@ if __name__ == "__main__":
     if not os.path.exists(default_save_dir):
         os.makedirs(default_save_dir)
     create_gui()
+    

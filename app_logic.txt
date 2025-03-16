@@ -1,0 +1,39 @@
+-need internet at first run, stores data to disk, if not connected, app will not work.
+-if not connected, finds the saved data, read and count how many days not connected.
+-when finally connected, update the last_server_con, update the stored data.
+-if connected but no stored data on disk, app will ask user to connect to internet. (will behave like first run)
+-if exp_date => current date, remind user to buy license. app will not be usable.
+
+-when user buys a license, stored data expiration should be updated for offline check
+-the hardware_id & license_key in tbl licenses is added.
+
+
+
+==============KWERY===============
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS licenses;
+DROP TABLE IF EXISTS devices;
+
+
+CREATE TABLE devices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    hardware_id TEXT UNIQUE NOT NULL, -- Unique identifier per device
+    registered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_server_con DATETIME NULL -- Last server connection time
+);
+CREATE TABLE licenses ( 
+    license_key TEXT PRIMARY KEY,
+    hardware_id TEXT UNIQUE NULL, -- A license can only be used by ONE device
+    is_active BOOLEAN DEFAULT 1, -- 1 = Active, 0 = Revoked
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NULL, -- When the key expires
+    date_used DATETIME NULL -- When the key was first activated
+);
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    contact_number TEXT NULL,
+    hardware_id TEXT UNIQUE NOT NULL, -- Stores the user's primary device, but not linked
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

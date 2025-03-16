@@ -5,7 +5,10 @@
       "label": "Run FastAPI Server",
       "type": "shell",
       "command": "uvicorn server:app --reload",
-      "group": "build",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
       "problemMatcher": [],
       "presentation": {
         "panel": "dedicated",
@@ -16,7 +19,10 @@
       "label": "Run app",
       "type": "shell",
       "command": "python client/app.py",
-      "group": "test",
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      },
       "problemMatcher": [],
       "presentation": {
         "panel": "dedicated",
@@ -27,7 +33,10 @@
       "label": "Run Both",
       "type": "shell",
       "command": "uvicorn server:app --reload & sleep 2 && python app.py",
-      "group": "build",
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
       "problemMatcher": [],
       "presentation": {
         "panel": "shared",
