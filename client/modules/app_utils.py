@@ -6,6 +6,14 @@ import os
 
 TRIAL_FILE = "client/cache.txt"
 
+def check_cache():
+    cache = read_cache()
+    if cache:
+        update_lastcon()
+        return cache
+    else:
+        register_device()
+
 def set_hidden_windows(file_path):
     """Set the hidden attribute on Windows."""
     try:
@@ -14,19 +22,30 @@ def set_hidden_windows(file_path):
     except Exception as e:
         print(f"Error hiding file: {e}", flush=True)
 
-def read_txt():
+def read_cache(data=None):
     try:
         if not os.path.isfile(TRIAL_FILE):
             print(f"Error: {TRIAL_FILE} does not exist or is not a file!")
-            return
+            os.makedirs("client", exist_ok=True)
+            if data is not None:
+                with open(TRIAL_FILE, "w") as f:
+                    f.write(f"{data}")
+                set_hidden_windows(TRIAL_FILE)  # Hide the file
+                print(f"cache file created: {data}", flush=True)
+            return None
         
+        if data is not None:
+            with open(TRIAL_FILE, "w", encoding="utf-8") as f:
+                f.write(f"{data}")
+
         with open(TRIAL_FILE, "r", encoding="utf-8") as f:
             txt_content = f.read()
-        print(f"content: {txt_content}")
-        return txt_content
+
+        print(f"cache text: {txt_content}")
+        return txt_content if txt_content else None
+    
     except Exception as e:
         print(f"Error: {e}")
-
 
 def get_hardware_ids():
     try:
@@ -97,22 +116,18 @@ def register_device():
             data = response.json()
             print(f"client: {data}", flush=True)
             if "last_server_con" in data:
-                os.makedirs("client", exist_ok=True)
-                with open(TRIAL_FILE, "w") as f:
-                    f.write(f"{data}")
-                set_hidden_windows(TRIAL_FILE)  # Hide the file
-                print(f"data saved: {data}", flush=True)
+                read_cache(data)
             return data
         except ValueError:
             print("❌ Invalid JSON response from server!")
             return None
         
     except requests.exceptions.Timeout:
-        print("❌ Request timed out")
+        print("❌ register timed out")
         return None
     
     except requests.exceptions.RequestException as e:
-        print(f"❌ Server Error: {e}")
+        print(f"❌register Server Error: {e}")
         return None
 
 def update_lastcon():
@@ -136,9 +151,10 @@ def update_lastcon():
         print(f"❌ Server Error: {e}")
         return None
     
-def connect(key):
+def validate_key(key):
     API_URL = "http://127.0.0.1:8000/validate"
     hw_id = get_hardware_ids()
+    date = datetime.now().isoformat()
     
     if hw_id is None:
         print("❌ Failed to generate hardware ID")
@@ -147,7 +163,8 @@ def connect(key):
     # Payload with key and hw_id
     payload = {
         "key": key,
-        "hw_id": hw_id
+        "hw_id": hw_id,
+        "date": date
     }
     
     try:

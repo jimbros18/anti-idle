@@ -17,7 +17,7 @@ import subprocess
 import sys
 import atexit
 
-from modules.ask_server import *
+from modules.app_utils import *
 
 # Global process variable for key_listener.py
 key_listener_process = None
@@ -535,7 +535,7 @@ def show_info():
         info_frm.pack(expand=True, fill=BOTH, padx=5, pady=5)
 
 def activate_btn(ser_key):
-    key = connect(ser_key)
+    key = validate_key(ser_key)
     content = find_txt()
     if key is not None:
         activate(content)
@@ -685,9 +685,7 @@ def create_gui():
     start_key_listener()
     load_keybinds_from_file()
     check_for_triggers()
-    # register_device()
-    # update_lastcon()
-    read_txt()
+    check_cache()
     
     root.attributes('-topmost', True)
     root.after(100, lambda: root.attributes('-topmost', False))
@@ -697,4 +695,3 @@ if __name__ == "__main__":
     if not os.path.exists(default_save_dir):
         os.makedirs(default_save_dir)
     create_gui()
-    

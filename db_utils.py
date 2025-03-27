@@ -20,8 +20,9 @@ headers = {
 
 # Define models
 class ValidationRequest(BaseModel):
-    key: int
+    key: str
     hw_id: str
+    date: str
 
 class DeviceRegisterRequest(BaseModel):
     hw_id: str
@@ -32,24 +33,25 @@ def validate_key(request: ValidationRequest):
     """Validate a key and update hardware ID in the database."""
     key = request.key
     hw_id = request.hw_id
-    print(f"🔍 Checking Key: {key}, Hardware ID: {hw_id}")
+    date = request.date
 
     payload = {
         "requests": [
             {
                 "type": "execute",
                 "stmt": {
-                    "sql": "SELECT * FROM anti_idle_app WHERE id = ?",
-                    "args": [{"type": "integer", "value": str(key)}]
+                    "sql": "SELECT * FROM licenses WHERE license_key = ?",
+                    "args": [{"type": "text", "value": key}]
                 }
             },
             {
                 "type": "execute",
                 "stmt": {
-                    "sql": "UPDATE anti_idle_app SET hw_id = ? WHERE id = ?",
+                    "sql": "UPDATE licenses SET hardware_id = ?, date_used = ? WHERE license_key = ?",
                     "args": [
-                        {"type": "text", "value": hw_id},  # Use the client-provided hw_id
-                        {"type": "integer", "value": str(key)}
+                        {"type": "text", "value": hw_id},
+                        {"type": "text", "value": date},
+                        {"type": "text", "value": key}
                     ]
                 }
             }
@@ -57,50 +59,46 @@ def validate_key(request: ValidationRequest):
     }
 
     try:
-        print(f"📤 Sending to {DB_URL}: {json.dumps(payload, indent=2)}")
-        print(f"📤 Headers: {headers}")
         response = requests.post(DB_URL, headers=headers, json=payload)
-        print(f"📥 Response: {response.text}")
         response.raise_for_status()
-
-        try:
-            data = response.json()
-        except ValueError:
-            print(f"❌ Invalid JSON response: {response.text}")
-            raise HTTPException(status_code=500, detail="Invalid database response")
-
+        
+        data = response.json()
         results = data.get("results", [])
-        if not results:
-            print("🚫 No results found.")
+        
+        # Check if we got results from the SELECT query (first request)
+        if not results or len(results) < 1 or not results[0].get("response", {}).get("result", {}).get("rows", []):
             raise HTTPException(status_code=404, detail="Key not found")
-
-        first_result = results[0].get("response", {}).get("result", {})
-        cols = first_result.get("cols", [])
-        rows_data = first_result.get("rows", [])
-
-        if not rows_data:
-            print("🚫 No matching row found.")
-            raise HTTPException(status_code=404, detail="Key not found")
-
-        col_heads = [col["name"] for col in cols]
-        first_row = rows_data[0]
-        row_values = [col["value"] for col in first_row]
-
+            
+        # Get the SELECT query result (first request)
+        select_result = results[0]["response"]["result"]
+        col_heads = [col["name"] for col in select_result["cols"]]
+        first_row = select_result["rows"][0]
+        
+        # Handle different row formats
+        if isinstance(first_row, list) and first_row and isinstance(first_row[0], dict) and "value" in first_row[0]:
+            row_values = [col["value"] for col in first_row]
+        else:
+            row_values = first_row
+            
         row_dict = dict(zip(col_heads, row_values))
-        serial_key = row_dict.get("s_key", "UNKNOWN")
-
-        if serial_key != "UNKNOWN":
-            os.makedirs("client", exist_ok=True)
-            with open('client/serial_key.txt', 'w', encoding="utf-8") as file:
-                file.write(str(serial_key))
-
-        print("✅ s_key:", serial_key)
-        return {"s_key": serial_key}
+        
+        # Verify the license_key exists
+        license_key = row_dict.get("license_key")
+        if not license_key:
+            raise HTTPException(status_code=404, detail="Key not found")
+            
+        # Write to file
+        os.makedirs("client", exist_ok=True)
+        with open('client/serial_key.txt', 'w', encoding="utf-8") as file:
+            file.write(str(license_key))
+            
+        # Return the full row
+        return row_dict
 
     except requests.exceptions.RequestException as e:
-        print(f"❌ Database request failed: {e}")
-        raise HTTPException(status_code=500, detail="Database request failed")
-
+        raise HTTPException(status_code=500, detail=f"Database request failed: {str(e)}")
+    except ValueError:
+        raise HTTPException(status_code=500, detail="Invalid database response")
 async def check_device_exists(hw_id: str):
     """Check if a device with the given hardware_id exists in the database."""
     payload = {
@@ -193,9 +191,9 @@ async def register_device(request: DeviceRegisterRequest):
             
             return {
                 "server message": "Device registered successfully",
-                "hardware_id": hw_id,
-                "registered_at": reg,
-                "last_server_con": server_con
+                # "hardware_id": hw_id,
+                # "registered_at": reg,
+                # "last_server_con": server_con
             }
         
         except ValueError:
@@ -238,7 +236,7 @@ async def server_lastcon(request: HW_ID_REQ):
                 raise HTTPException(status_code=500, detail="Database error")
             
             return {
-                "server message": "UIA",
+                "server message": "Last server connection updated!",
                 "hardware_id": hw_id,
                 "last_server_ping": date
             }

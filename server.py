@@ -3,8 +3,8 @@ from db_utils import *
 app = FastAPI()
 
 @app.post("/validate")
-async def validate_key_endpoint(request: ValidationRequest):
-    return await validate_key(request)
+def validate_key_endpoint(request: ValidationRequest):
+    return validate_key(request)
 
 @app.post("/reg_dev")
 async def reg_dev_endpoint(request: DeviceRegisterRequest):
