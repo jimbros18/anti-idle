@@ -153,9 +153,9 @@ async def register_device(request: DeviceRegisterRequest):
     if device_check["exists"]:
         return {
             "server message": "Device already registered",
-            # "hardware_id": device_check["hardware_id"],
-            # "registered_at": device_check["registered_at"],
-            # "last_server_con": device_check["last_server_con"]
+            "hardware_id": device_check["hardware_id"],
+            "registered_at": device_check["registered_at"],
+            "last_server_con": device_check["last_server_con"]
         }
 
     payload = {
@@ -191,9 +191,9 @@ async def register_device(request: DeviceRegisterRequest):
             
             return {
                 "server message": "Device registered successfully",
-                # "hardware_id": hw_id,
-                # "registered_at": reg,
-                # "last_server_con": server_con
+                "hardware_id": hw_id,
+                "registered_at": reg,
+                "last_server_con": server_con
             }
         
         except ValueError:
@@ -216,11 +216,18 @@ async def server_lastcon(request: HW_ID_REQ):
                 {
                     "type": "execute",
                     "stmt": {
-                        "sql": "UPDATE devices SET last_server_con = ? WHERE hardware_id = ?",
-                       "args": [
-                            {"type": "text", "value": date},
-                            {"type": "text", "value": hw_id}
+                            "sql": "UPDATE devices SET last_server_con = ? WHERE hardware_id = ?",
+                        "args": [
+                                {"type": "text", "value": date},
+                                {"type": "text", "value": hw_id}
                        ]
+                    }
+                },
+                {
+                    "type": "query",
+                    "stmt": {
+                        "sql": "SELECT * FROM devices WHERE hardware_id = ?",
+                        "args": [{"type": "text", "value": hw_id}]
                     }
                 }
             ]
@@ -235,11 +242,12 @@ async def server_lastcon(request: HW_ID_REQ):
                 print("🚫 No response from DB.")
                 raise HTTPException(status_code=500, detail="Database error")
             
-            return {
-                "server message": "Last server connection updated!",
-                "hardware_id": hw_id,
-                "last_server_ping": date
-            }
+            return data
+            # return {
+            #     "server message": "Last server connection updated!",
+            #     "hardware_id": hw_id,
+            #     "last_server_con": date
+            # }
 
         except ValueError:
             print(f"❌ Invalid JSON response: {response.text}")

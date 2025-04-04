@@ -79,7 +79,7 @@ def check_keybinds_file():
 
 def execute_command(command):
     """Execute a command in the main app by creating a trigger file."""
-    print(f"Executing command: {command}")
+    # print(f"Executing command: {command}")
     with open(f"{command}.trigger", 'w') as f:
         f.write(str(time.time()))
 
@@ -87,8 +87,8 @@ def on_press(key):
     if is_paused():
         return  # Skip key detection when paused
     pressed_keys.add(key)
-    print(f"Key pressed: {key} (type: {type(key)})")
-    print(f"Current pressed keys: {[k.name if hasattr(k, 'name') else k for k in pressed_keys]}")
+    # print(f"Key pressed: {key} (type: {type(key)})")
+    # print(f"Current pressed keys: {[k.name if hasattr(k, 'name') else k for k in pressed_keys]}")
     
     for action, (modifier, bind_key) in keybinds.items():
         if modifier in pressed_keys:
@@ -110,7 +110,7 @@ def on_release(key):
         return  # Skip key release when paused
     if key in pressed_keys:
         pressed_keys.remove(key)
-        print(f"Key released: {key}")
+        # print(f"Key released: {key}")
     
     if key == Key.esc and Key.ctrl_l in pressed_keys:
         return False

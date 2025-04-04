@@ -9,7 +9,8 @@ TRIAL_FILE = "client/cache.txt"
 def check_cache():
     cache = read_cache()
     if cache:
-        update_lastcon()
+        data = update_lastcon()
+        print(read_cache(data))
         return cache
     else:
         register_device()
@@ -24,14 +25,13 @@ def set_hidden_windows(file_path):
 
 def read_cache(data=None):
     try:
-        if not os.path.isfile(TRIAL_FILE):
-            print(f"Error: {TRIAL_FILE} does not exist or is not a file!")
-            os.makedirs("client", exist_ok=True)
-            if data is not None:
-                with open(TRIAL_FILE, "w") as f:
-                    f.write(f"{data}")
-                set_hidden_windows(TRIAL_FILE)  # Hide the file
-                print(f"cache file created: {data}", flush=True)
+        if not os.path.isfile(TRIAL_FILE) and data is None:
+            # os.makedirs("client", exist_ok=True)
+            # print(f"{TRIAL_FILE} created. ")
+            with open(TRIAL_FILE, "w") as f:
+                f.write("")
+            set_hidden_windows(TRIAL_FILE)
+            print(f"{TRIAL_FILE} created.")
             return None
         
         if data is not None:
@@ -45,7 +45,7 @@ def read_cache(data=None):
         return txt_content if txt_content else None
     
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Irur: {e}")
 
 def get_hardware_ids():
     try:
@@ -115,9 +115,10 @@ def register_device():
         try:
             data = response.json()
             print(f"client: {data}", flush=True)
-            if "last_server_con" in data:
+            if data:
                 read_cache(data)
             return data
+        
         except ValueError:
             print("❌ Invalid JSON response from server!")
             return None
@@ -144,8 +145,8 @@ def update_lastcon():
         response = requests.post(API_URL, json=payload)
         response.raise_for_status()
         data = response.json()
-        print(f"client: {data}")
-        return f"client: {data}"
+        print(f"lastcon: {data}")
+        return data
     
     except requests.exceptions.RequestException as e:
         print(f"❌ Server Error: {e}")
