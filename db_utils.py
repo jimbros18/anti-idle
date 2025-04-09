@@ -99,6 +99,7 @@ def validate_key(request: ValidationRequest):
         raise HTTPException(status_code=500, detail=f"Database request failed: {str(e)}")
     except ValueError:
         raise HTTPException(status_code=500, detail="Invalid database response")
+    
 async def check_device_exists(hw_id: str):
     """Check if a device with the given hardware_id exists in the database."""
     payload = {
@@ -191,9 +192,9 @@ async def register_device(request: DeviceRegisterRequest):
             
             return {
                 "server message": "Device registered successfully",
-                "hardware_id": hw_id,
-                "registered_at": reg,
-                "last_server_con": server_con
+                # "hardware_id": hw_id,
+                # "registered_at": reg,
+                # "last_server_con": server_con
             }
         
         except ValueError:
@@ -237,18 +238,22 @@ async def server_lastcon(request: HW_ID_REQ):
         response.raise_for_status()
         try:
             data = response.json()
+            print(data)
             results = data.get("results", [])
             if not results:
                 print("🚫 No response from DB.")
                 raise HTTPException(status_code=500, detail="Database error")
             
-            return data
-            # return {
-            #     "server message": "Last server connection updated!",
-            #     "hardware_id": hw_id,
-            #     "last_server_con": date
-            # }
-
+            # device = results[1].get("results", [])[0]  # Assumes second query gives data
+            # if len(results) < 2 or not results[1].get("results"):
+            #     print("🚫 No data returned from SELECT query")
+            #     raise HTTPException(status_code=500, detail="No data returned")
+            
+            return {
+                "server message": "Last server connection updated!",
+                "device": results
+            }
+                
         except ValueError:
             print(f"❌ Invalid JSON response: {response.text}")
             raise HTTPException(status_code=500, detail="Invalid database response")

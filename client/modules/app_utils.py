@@ -13,7 +13,7 @@ def check_cache():
         print(read_cache(data))
         return cache
     else:
-        register_device()
+            register_device()
 
 def set_hidden_windows(file_path):
     """Set the hidden attribute on Windows."""
@@ -25,27 +25,33 @@ def set_hidden_windows(file_path):
 
 def read_cache(data=None):
     try:
+        # print(f"Checking if file exists: {TRIAL_FILE}")
         if not os.path.isfile(TRIAL_FILE) and data is None:
-            # os.makedirs("client", exist_ok=True)
-            # print(f"{TRIAL_FILE} created. ")
-            with open(TRIAL_FILE, "w") as f:
+            # print(f"Creating file: {TRIAL_FILE}")
+            os.makedirs(os.path.dirname(TRIAL_FILE), exist_ok=True)
+            with open(TRIAL_FILE, "w", encoding="utf-8") as f:
                 f.write("")
-            set_hidden_windows(TRIAL_FILE)
-            print(f"{TRIAL_FILE} created.")
+            # print(f"{TRIAL_FILE} created.")
             return None
         
         if data is not None:
+            print(f"Writing data to file: {TRIAL_FILE}")
             with open(TRIAL_FILE, "w", encoding="utf-8") as f:
                 f.write(f"{data}")
 
+        # print(f"Reading file: {TRIAL_FILE}")
         with open(TRIAL_FILE, "r", encoding="utf-8") as f:
             txt_content = f.read()
 
         print(f"cache text: {txt_content}")
         return txt_content if txt_content else None
     
+    except PermissionError as e:
+        print(f"Irur: Permission denied at {TRIAL_FILE}. Operation: {e}")
+        return None
     except Exception as e:
-        print(f"Irur: {e}")
+        print(f"Irur: Unexpected error: {e}")
+        return None
 
 def get_hardware_ids():
     try:
@@ -114,7 +120,7 @@ def register_device():
 
         try:
             data = response.json()
-            print(f"client: {data}", flush=True)
+            # print(f"client: {data}", flush=True)
             if data:
                 read_cache(data)
             return data
@@ -133,19 +139,19 @@ def register_device():
 
 def update_lastcon():
     hw_id: str = get_hardware_ids()
-    user_cur_date = datetime.now().isoformat()
+    user_date = datetime.now().isoformat()
     if hw_id is None:
         print("❌ Failed to get hardware IDs")
         return None
     
     API_URL = "http://127.0.0.1:8000/lastcon"
-    payload = {"hw_id": hw_id, "date": user_cur_date}
-    # print(f"Sending: {payload}")
+    payload = {"hw_id": hw_id, "date": user_date}
+    print(f"Sending: {payload}")
     try:
         response = requests.post(API_URL, json=payload)
         response.raise_for_status()
         data = response.json()
-        print(f"lastcon: {data}")
+        print(data)
         return data
     
     except requests.exceptions.RequestException as e:
