@@ -179,7 +179,7 @@ async def register_device(request: DeviceRegisterRequest):
     }
 
     try:
-        print(f"📤 Sending to {DB_URL}: {json.dumps(payload, indent=2)}")
+        # print(f"📤 Sending to {DB_URL}: {json.dumps(payload, indent=2)}")
         response = requests.post(DB_URL, headers=headers, json=payload)
         response.raise_for_status()
 
@@ -192,9 +192,9 @@ async def register_device(request: DeviceRegisterRequest):
             
             return {
                 "server message": "Device registered successfully",
-                # "hardware_id": hw_id,
-                # "registered_at": reg,
-                # "last_server_con": server_con
+                "hardware_id": hw_id,
+                "registered_at": reg,
+                "last_server_con": server_con
             }
         
         except ValueError:
@@ -225,7 +225,7 @@ async def server_lastcon(request: HW_ID_REQ):
                     }
                 },
                 {
-                    "type": "query",
+                    "type": "execute",
                     "stmt": {
                         "sql": "SELECT * FROM devices WHERE hardware_id = ?",
                         "args": [{"type": "text", "value": hw_id}]
@@ -238,20 +238,26 @@ async def server_lastcon(request: HW_ID_REQ):
         response.raise_for_status()
         try:
             data = response.json()
-            print(data)
             results = data.get("results", [])
             if not results:
                 print("🚫 No response from DB.")
                 raise HTTPException(status_code=500, detail="Database error")
             
-            # device = results[1].get("results", [])[0]  # Assumes second query gives data
-            # if len(results) < 2 or not results[1].get("results"):
-            #     print("🚫 No data returned from SELECT query")
-            #     raise HTTPException(status_code=500, detail="No data returned")
+            if len(results) < 2 or not results[1].get("response", {}).get("result", {}).get("rows"):
+                print("🚫 No data returned from SELECT query")
+                raise HTTPException(status_code=404, detail="Device not found")
+
+            # Extract device data
+            select_result = results[1]["response"]["result"]
+            cols = [col["name"] for col in select_result["cols"]]  # Get column names
+            row = select_result["rows"][0]  # Get first row
+            device_data = {
+                cols[i]: value["value"] for i, value in enumerate(row)
+            }
             
             return {
                 "server message": "Last server connection updated!",
-                "device": results
+                "data": device_data
             }
                 
         except ValueError:
@@ -260,4 +266,5 @@ async def server_lastcon(request: HW_ID_REQ):
 
     except requests.exceptions.RequestException as e:
         print(f"❌ Database request failed: {e}")
+        print(f"Response body: {response.text}")
         raise HTTPException(status_code=500, detail="Database request failed")

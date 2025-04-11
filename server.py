@@ -12,5 +12,5 @@ async def reg_dev_endpoint(request: DeviceRegisterRequest):
 
 @app.post("/lastcon")
 async def update_lastcon(request:HW_ID_REQ):
-    print(f"resib: {request.hw_id}")
+    print(f"resib: {request.date}")
     return await server_lastcon(request)

@@ -4,4 +4,5 @@ client/saved_sequences/
 .env
 client/keybinds.json
 client/serial_key.txt
+client/cache.txt
 client/pause_listener.trigger

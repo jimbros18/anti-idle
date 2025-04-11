@@ -7,13 +7,15 @@ import os
 TRIAL_FILE = "client/cache.txt"
 
 def check_cache():
+    print('SEARCHING CACHE ON START')
     cache = read_cache()
     if cache:
         data = update_lastcon()
-        print(read_cache(data))
+        print('UPDATING SERVER')
+        read_cache(data)
         return cache
     else:
-            register_device()
+        register_device()
 
 def set_hidden_windows(file_path):
     """Set the hidden attribute on Windows."""
@@ -25,25 +27,23 @@ def set_hidden_windows(file_path):
 
 def read_cache(data=None):
     try:
-        # print(f"Checking if file exists: {TRIAL_FILE}")
         if not os.path.isfile(TRIAL_FILE) and data is None:
-            # print(f"Creating file: {TRIAL_FILE}")
             os.makedirs(os.path.dirname(TRIAL_FILE), exist_ok=True)
             with open(TRIAL_FILE, "w", encoding="utf-8") as f:
                 f.write("")
-            # print(f"{TRIAL_FILE} created.")
+            print("CACHE NOT FOUND..... CACHE CREATED.")
             return None
         
-        if data is not None:
-            print(f"Writing data to file: {TRIAL_FILE}")
+        if data is not None: #has data
+            print("WRITING DATA TO CACHE")
             with open(TRIAL_FILE, "w", encoding="utf-8") as f:
                 f.write(f"{data}")
 
-        # print(f"Reading file: {TRIAL_FILE}")
+        print("READING CACHE")
         with open(TRIAL_FILE, "r", encoding="utf-8") as f:
             txt_content = f.read()
 
-        print(f"cache text: {txt_content}")
+        print(f"CACHE CONTENT: {txt_content}")
         return txt_content if txt_content else None
     
     except PermissionError as e:
@@ -120,7 +120,6 @@ def register_device():
 
         try:
             data = response.json()
-            # print(f"client: {data}", flush=True)
             if data:
                 read_cache(data)
             return data
@@ -146,12 +145,10 @@ def update_lastcon():
     
     API_URL = "http://127.0.0.1:8000/lastcon"
     payload = {"hw_id": hw_id, "date": user_date}
-    print(f"Sending: {payload}")
     try:
         response = requests.post(API_URL, json=payload)
         response.raise_for_status()
         data = response.json()
-        print(data)
         return data
     
     except requests.exceptions.RequestException as e:
