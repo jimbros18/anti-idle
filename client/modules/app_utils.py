@@ -3,55 +3,9 @@ import wmi
 from datetime import datetime
 import ctypes
 import os
+import ast
 
 TRIAL_FILE = "client/cache.txt"
-
-def check_cache():
-    print('SEARCHING CACHE ON START')
-    cache = read_cache()
-    if cache:
-        data = update_lastcon()
-        print('UPDATING SERVER')
-        read_cache(data)
-        return cache
-    else:
-        register_device()
-
-def set_hidden_windows(file_path):
-    """Set the hidden attribute on Windows."""
-    try:
-        ctypes.windll.kernel32.SetFileAttributesW(file_path, 2)  # 2 = FILE_ATTRIBUTE_HIDDEN
-        print(f"Set {file_path} as hidden", flush=True)
-    except Exception as e:
-        print(f"Error hiding file: {e}", flush=True)
-
-def read_cache(data=None):
-    try:
-        if not os.path.isfile(TRIAL_FILE) and data is None:
-            os.makedirs(os.path.dirname(TRIAL_FILE), exist_ok=True)
-            with open(TRIAL_FILE, "w", encoding="utf-8") as f:
-                f.write("")
-            print("CACHE NOT FOUND..... CACHE CREATED.")
-            return None
-        
-        if data is not None: #has data
-            print("WRITING DATA TO CACHE")
-            with open(TRIAL_FILE, "w", encoding="utf-8") as f:
-                f.write(f"{data}")
-
-        print("READING CACHE")
-        with open(TRIAL_FILE, "r", encoding="utf-8") as f:
-            txt_content = f.read()
-
-        print(f"CACHE CONTENT: {txt_content}")
-        return txt_content if txt_content else None
-    
-    except PermissionError as e:
-        print(f"Irur: Permission denied at {TRIAL_FILE}. Operation: {e}")
-        return None
-    except Exception as e:
-        print(f"Irur: Unexpected error: {e}")
-        return None
 
 def get_hardware_ids():
     try:
@@ -102,9 +56,58 @@ def get_hardware_ids():
         print(f"Error retrieving hardware IDs: {e}")
         return None
 
+hw_id = get_hardware_ids()
+
+def check_cache():
+    print('SEARCHING CACHE ON START')
+    cache = read_cache()
+    if cache:
+        data = update_lastcon()
+        print('UPDATING SERVER')
+        read_cache(data)
+        return cache
+    else:
+        register_device()
+
+def set_hidden_windows(file_path):
+    """Set the hidden attribute on Windows."""
+    try:
+        ctypes.windll.kernel32.SetFileAttributesW(file_path, 2)  # 2 = FILE_ATTRIBUTE_HIDDEN
+        print(f"Set {file_path} as hidden", flush=True)
+    except Exception as e:
+        print(f"Error hiding file: {e}", flush=True)
+
+def read_cache(data=None):
+    try:
+        if not os.path.isfile(TRIAL_FILE) and data is None:
+            os.makedirs(os.path.dirname(TRIAL_FILE), exist_ok=True)
+            with open(TRIAL_FILE, "w", encoding="utf-8") as f:
+                f.write("")
+            print("CACHE NOT FOUND..... CACHE CREATED.")
+            return None
+        
+        if data is not None: #has data
+            print("WRITING DATA TO CACHE")
+            with open(TRIAL_FILE, "w", encoding="utf-8") as f:
+                f.write(f"{data}")
+
+        print("READING CACHE")
+        with open(TRIAL_FILE, "r", encoding="utf-8") as f:
+            txt_content = f.read()
+
+        print(f"CACHE CONTENT: {txt_content}")
+        return txt_content if txt_content else None
+    
+    except PermissionError as e:
+        print(f"Irur: Permission denied at {TRIAL_FILE}. Operation: {e}")
+        return None
+    except Exception as e:
+        print(f"Irur: Unexpected error: {e}")
+        return None
+
 def register_device():
     API_URL = "http://127.0.0.1:8000/reg_dev"
-    hw_id = get_hardware_ids()
+    # hw_id = get_hardware_ids()
     date_reg = datetime.now().isoformat()
     last_server_con = datetime.now().isoformat()
 
@@ -157,7 +160,7 @@ def update_lastcon():
     
 def validate_key(key):
     API_URL = "http://127.0.0.1:8000/validate"
-    hw_id = get_hardware_ids()
+    # hw_id = get_hardware_ids()
     date = datetime.now().isoformat()
     
     if hw_id is None:
@@ -189,4 +192,17 @@ def validate_key(key):
         print(f"❌ Server Error: {e}")
         return None
 
-
+def check_trial():
+    with open(TRIAL_FILE, "r") as file:
+        content = file.read()
+    data = ast.literal_eval(content)
+    reg_at = data['registered_at']
+    reg_date = reg_at['value']
+    # reg_date ='2025-03-31T21:48:32.999104'
+    dt_obj = datetime.fromisoformat(reg_date)
+    now = datetime.now()
+    time_diff = now - dt_obj
+    if time_diff.days >= 14:
+        print(f'{time_diff} days passed, trial has expired.')
+    else:
+        print(f'{time_diff} TRIAL ACTIVE')

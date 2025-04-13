@@ -685,7 +685,9 @@ def create_gui():
     start_key_listener()
     load_keybinds_from_file()
     check_for_triggers()
-    check_cache()
+    # check_cache()
+    check_trial()
+
     
     root.attributes('-topmost', True)
     root.after(100, lambda: root.attributes('-topmost', False))
