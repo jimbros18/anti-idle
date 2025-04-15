@@ -65,7 +65,7 @@ def check_cache():
         data = update_lastcon()
         print('UPDATING SERVER')
         read_cache(data)
-        return cache
+        return check_trial()
     else:
         register_device()
 
@@ -193,16 +193,14 @@ def validate_key(key):
         return None
 
 def check_trial():
-    with open(TRIAL_FILE, "r") as file:
-        content = file.read()
+    content = read_cache()
     data = ast.literal_eval(content)
-    reg_at = data['registered_at']
-    reg_date = reg_at['value']
-    # reg_date ='2025-03-31T21:48:32.999104'
-    dt_obj = datetime.fromisoformat(reg_date)
+    reg_at = data['registered_at']['value']
+    # # reg_date ='2025-03-31T21:48:32.999104'
+    dt_obj = datetime.fromisoformat(reg_at)
     now = datetime.now()
     time_diff = now - dt_obj
     if time_diff.days >= 14:
-        print(f'{time_diff} days passed, trial has expired.')
+        return False
     else:
-        print(f'{time_diff} TRIAL ACTIVE')
+        return True

@@ -685,8 +685,13 @@ def create_gui():
     start_key_listener()
     load_keybinds_from_file()
     check_for_triggers()
-    # check_cache()
-    check_trial()
+    if check_cache() != False:
+        content = read_cache()
+        data = ast.literal_eval(content)
+        reg_at = data['registered_at']['value']
+        days_left = reg_at-14
+        messagebox.showwarning('Trial Expired',f'{days_left} day left for trial to expire.')
+        root.destroy()
 
     
     root.attributes('-topmost', True)
