@@ -4,8 +4,10 @@ from datetime import datetime
 import ctypes
 import os
 import ast
+import json
 
 TRIAL_FILE = "client/cache.txt"
+
 
 def get_hardware_ids():
     try:
@@ -56,19 +58,52 @@ def get_hardware_ids():
         print(f"Error retrieving hardware IDs: {e}")
         return None
 
+def read_cache(data=None):
+    try:
+        if not os.path.isfile(TRIAL_FILE) and data is None:
+            os.makedirs(os.path.dirname(TRIAL_FILE), exist_ok=True)
+            with open(TRIAL_FILE, "w", encoding="utf-8") as f:
+                f.write("")  # Create an empty cache file if not present
+            print("CACHE NOT FOUND..... CACHE CREATED.")
+            return None
+        
+        if data is not None:  # has data
+            print("WRITING DATA TO CACHE")
+            with open(TRIAL_FILE, "w", encoding="utf-8") as f:
+                # Serialize the data to JSON before writing to the file
+                json.dump(data, f)  # Write as JSON
+
+        print("READING CACHE")
+        with open(TRIAL_FILE, "r", encoding="utf-8") as f:
+            txt_content = f.read()
+
+        print(f"CACHE CONTENT: {txt_content}")
+        
+        if txt_content:
+            # Deserialize the JSON content back to Python objects
+            return json.loads(txt_content)
+        else:
+            return None
+    
+    except PermissionError as e:
+        print(f"Permission denied at {TRIAL_FILE}. Operation: {e}")
+        return None
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return None
+
 hw_id = get_hardware_ids()
+cache = read_cache()
 
 def check_cache():
-    print('SEARCHING CACHE ON START')
-    cache = read_cache()
-    if cache:
+    if cache is not None:
         data = update_lastcon()
         print('UPDATING SERVER')
-        read_cache(data)
-        return cache
+        up_cache = read_cache(data)
+        return count_days(up_cache)
     else:
-        register_device()
-
+        return register_device()
+        
 def set_hidden_windows(file_path):
     """Set the hidden attribute on Windows."""
     try:
@@ -77,45 +112,15 @@ def set_hidden_windows(file_path):
     except Exception as e:
         print(f"Error hiding file: {e}", flush=True)
 
-def read_cache(data=None):
-    try:
-        if not os.path.isfile(TRIAL_FILE) and data is None:
-            os.makedirs(os.path.dirname(TRIAL_FILE), exist_ok=True)
-            with open(TRIAL_FILE, "w", encoding="utf-8") as f:
-                f.write("")
-            print("CACHE NOT FOUND..... CACHE CREATED.")
-            return None
-        
-        if data is not None: #has data
-            print("WRITING DATA TO CACHE")
-            with open(TRIAL_FILE, "w", encoding="utf-8") as f:
-                f.write(f"{data}")
-
-        print("READING CACHE")
-        with open(TRIAL_FILE, "r", encoding="utf-8") as f:
-            txt_content = f.read()
-
-        print(f"CACHE CONTENT: {txt_content}")
-        return txt_content if txt_content else None
-    
-    except PermissionError as e:
-        print(f"Irur: Permission denied at {TRIAL_FILE}. Operation: {e}")
-        return None
-    except Exception as e:
-        print(f"Irur: Unexpected error: {e}")
-        return None
-
 def register_device():
     API_URL = "http://127.0.0.1:8000/reg_dev"
-    # hw_id = get_hardware_ids()
-    date_reg = datetime.now().isoformat()
-    last_server_con = datetime.now().isoformat()
+    date_now = datetime.now().isoformat()
 
     if not hw_id:
         print("❌ Failed to generate hardware ID")
         return None
 
-    payload = {"hw_id": hw_id, 'reg':date_reg, 'server_con': last_server_con}
+    payload = {"hw_id": hw_id, 'date':date_now}
 
     try:
         response = requests.post(API_URL, json=payload, timeout=5)
@@ -124,8 +129,8 @@ def register_device():
         try:
             data = response.json()
             if data:
-                read_cache(data)
-            return data
+               content =  read_cache(data)
+               return count_days(content)
         
         except ValueError:
             print("❌ Invalid JSON response from server!")
@@ -140,7 +145,7 @@ def register_device():
         return None
 
 def update_lastcon():
-    hw_id: str = get_hardware_ids()
+    # hw_id: str = get_hardware_ids()
     user_date = datetime.now().isoformat()
     if hw_id is None:
         print("❌ Failed to get hardware IDs")
@@ -192,17 +197,15 @@ def validate_key(key):
         print(f"❌ Server Error: {e}")
         return None
 
-def check_trial():
-    with open(TRIAL_FILE, "r") as file:
-        content = file.read()
-    data = ast.literal_eval(content)
-    reg_at = data['registered_at']
-    reg_date = reg_at['value']
-    # reg_date ='2025-03-31T21:48:32.999104'
-    dt_obj = datetime.fromisoformat(reg_date)
-    now = datetime.now()
-    time_diff = now - dt_obj
-    if time_diff.days >= 14:
-        print(f'{time_diff} days passed, trial has expired.')
+def count_days(cache):
+    if cache is not None:
+        # data_dict = cache['data']
+        reg_at = cache['data']['registered_at']
+        dt_obj = datetime.fromisoformat(reg_at)
+        now = datetime.now()
+        time_diff = now - dt_obj
+        print(time_diff.days)
+        return time_diff.days
     else:
-        print(f'{time_diff} TRIAL ACTIVE')
+        print('CACHE IS NONE')
+        return None

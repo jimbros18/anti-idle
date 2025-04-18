@@ -4,6 +4,7 @@ import requests
 import json
 from fastapi import HTTPException
 from pydantic import BaseModel
+import ast
 
 # Load environment variables
 load_dotenv()
@@ -26,8 +27,8 @@ class ValidationRequest(BaseModel):
 
 class DeviceRegisterRequest(BaseModel):
     hw_id: str
-    reg: str  # Registration date
-    server_con: str  # Last server connection
+    date: str  # Registration date
+    # server_con: str  # Last server connection
 
 def validate_key(request: ValidationRequest):
     """Validate a key and update hardware ID in the database."""
@@ -107,7 +108,7 @@ async def check_device_exists(hw_id: str):
             {
                 "type": "execute",
                 "stmt": {
-                    "sql": "SELECT hardware_id, registered_at, last_server_con FROM devices WHERE hardware_id = ?",
+                    "sql": "SELECT * FROM devices WHERE hardware_id = ?",
                     "args": [{"type": "text", "value": hw_id}]
                 }
             }
@@ -131,9 +132,10 @@ async def check_device_exists(hw_id: str):
             device_data = rows[0]  # [hw_id, registered_at, last_server_con]
             return {
                 "exists": True,
-                "hardware_id": device_data[0],
-                "registered_at": device_data[1],
-                "last_server_con": device_data[2]
+                "id": device_data[0]['value'],
+                "hardware_id": device_data[1]['value'],
+                "registered_at": device_data[2]['value'],
+                "last_server_con": device_data[3]['value']
             }
         return {"exists": False}
 
@@ -146,17 +148,21 @@ async def check_device_exists(hw_id: str):
 
 async def register_device(request: DeviceRegisterRequest):
     hw_id = request.hw_id
-    reg = request.reg
-    server_con = request.server_con
+    user_date = request.date
+    # server_con = request.server_con
     
-    device_check = await check_device_exists(hw_id)
+    dev_data= await check_device_exists(hw_id)
     
-    if device_check["exists"]:
+    if dev_data["exists"]:
+        device_data = {
+            "id": dev_data["id"],
+            "hardware_id": dev_data["hardware_id"],
+            "registered_at": dev_data["registered_at"],
+            "last_server_con": dev_data["last_server_con"],
+        }
         return {
             "server message": "Device already registered",
-            "hardware_id": device_check["hardware_id"],
-            "registered_at": device_check["registered_at"],
-            "last_server_con": device_check["last_server_con"]
+            "data": device_data
         }
 
     payload = {
@@ -170,8 +176,8 @@ async def register_device(request: DeviceRegisterRequest):
                     """,
                     "args": [
                         {"type": "text", "value": hw_id},
-                        {"type": "text", "value": reg},
-                        {"type": "text", "value": server_con}
+                        {"type": "text", "value": user_date},
+                        {"type": "text", "value": user_date}
                     ]
                 }
             }
@@ -179,22 +185,27 @@ async def register_device(request: DeviceRegisterRequest):
     }
 
     try:
-        # print(f"📤 Sending to {DB_URL}: {json.dumps(payload, indent=2)}")
         response = requests.post(DB_URL, headers=headers, json=payload)
         response.raise_for_status()
 
         try:
             data = response.json()
             results = data.get("results", [])
-            if not results:
+            if not results or len(results) < 2:
                 print("🚫 No response from DB.")
                 raise HTTPException(status_code=500, detail="Database error")
-            
+
+            # Extract device data from SELECT query (second request)
+            select_result = results[1]["response"]["result"]
+            cols = [col["name"] for col in select_result["cols"]]
+            row = select_result["rows"][0]
+            device_data = {
+                cols[i]: value["value"] for i, value in enumerate(row)
+            }
+
             return {
                 "server message": "Device registered successfully",
-                "hardware_id": hw_id,
-                "registered_at": reg,
-                "last_server_con": server_con
+                "data": device_data
             }
         
         except ValueError:
@@ -203,6 +214,7 @@ async def register_device(request: DeviceRegisterRequest):
 
     except requests.exceptions.RequestException as e:
         print(f"❌ Database request failed: {e}")
+        print(f"Response body: {response.text}")
         raise HTTPException(status_code=500, detail="Database request failed")
     
 class HW_ID_REQ(BaseModel):
