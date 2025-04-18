@@ -16,6 +16,7 @@ import pickle
 import subprocess
 import sys
 import atexit
+import asyncio
 
 from modules.app_utils import *
 
@@ -577,17 +578,31 @@ sk_entry = None
 act_lbl = None
 info_lbl = None
 
+def center_window(root, width, height):
+    """Center the window on the primary screen."""
+    root.update_idletasks()  # Ensure window metrics are ready
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    x = (screen_width - width) // 2
+    y = (screen_height - height) // 2
+    root.geometry(f"{width}x{height}+{x}+{y}")
+
 def create_gui():
     global status_var, app_name_var, root, main_frame, settings_frame, sequence_frame, ser_key, sk_entry, info_lbl
     global title_label, sequence_title_frame, mouse_listener, keyboard_listener, info_frm, act_frm, act_lbl
     
     root = ttk.Window(themename='darkly')
-    root.geometry("200x255")
+    # root.geometry("200x255")
     root.overrideredirect(True)
     root.resizable(False, False)
     
     app_name_var = ttk.StringVar(value=DEFAULT_APP_NAME)
     root.title(app_name_var.get())
+
+    # Define window size
+    WINDOW_WIDTH = 200
+    WINDOW_HEIGHT = 255
+    center_window(root, WINDOW_WIDTH, WINDOW_HEIGHT)
     
     title_bar = ttk.Frame(root, bootstyle="dark")
     title_bar.pack(fill=X, pady=0, ipady=5)
@@ -685,15 +700,16 @@ def create_gui():
     start_key_listener()
     load_keybinds_from_file()
     check_for_triggers()
-    if check_cache() != False:
-        content = read_cache()
-        data = ast.literal_eval(content)
-        reg_at = data['registered_at']['value']
-        days_left = reg_at-14
-        messagebox.showwarning('Trial Expired',f'{days_left} day left for trial to expire.')
-        root.destroy()
 
-    
+    async def start_check():
+        if check_cache() < 14:
+            messagebox.showinfo("Trial", f"{14-check_cache()} days left of your trial.")
+        else:
+            messagebox.showwarning("Trial period ended.", "Your 14-day trial has ended.")
+            root.destroy()
+
+    asyncio.run(start_check())
+
     root.attributes('-topmost', True)
     root.after(100, lambda: root.attributes('-topmost', False))
     root.mainloop()
