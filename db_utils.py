@@ -280,3 +280,56 @@ async def server_lastcon(request: HW_ID_REQ):
         print(f"❌ Database request failed: {e}")
         print(f"Response body: {response.text}")
         raise HTTPException(status_code=500, detail="Database request failed")
+    
+class LicenseCheck(BaseModel):
+    hw_id: str
+    key: str
+
+async def find_license(request: LicenseCheck):
+    hw_id = request.hw_id
+    key = request.key
+    payload = {
+            "requests": [
+                {
+                    "type": "execute",
+                    "stmt": {
+                        "sql": "SELECT * FROM licenses WHERE license_key = ? AND hardware_id = ?",
+                        "args": [{"type": "text", "value": key},
+                                 {"type": "text", "value": hw_id}]
+                    }
+                }
+            ]
+        }
+    try:
+        response = requests.post(DB_URL, headers=headers, json=payload)
+        response.raise_for_status()
+        try:
+            data = response.json()
+            results = data.get("results", [])
+            if not results:
+                print("🚫 No response from DB.")
+                raise HTTPException(status_code=500, detail="Database error")
+
+            select_result = results[0]["response"]["result"]
+            rows = select_result.get("rows", [])
+
+            if not rows:
+                print("🚫 No matching license found.")
+                raise HTTPException(status_code=404, detail="License not found")
+
+            cols = [col["name"] for col in select_result["cols"]]
+            row = rows[0]
+            record = {cols[i]: cell["value"] for i, cell in enumerate(row)}
+
+            return {
+                "server message": "License found",
+                "data": record
+            }
+        except ValueError:
+            print(f"❌ Invalid JSON response: {response.text}")
+            raise HTTPException(status_code=500, detail="Invalid database response")
+
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Database request failed: {e}")
+        print(f"Response body: {response.text}")
+        raise HTTPException(status_code=500, detail="Database request failed")

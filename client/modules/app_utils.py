@@ -94,13 +94,14 @@ def read_cache(data=None):
 
 hw_id = get_hardware_ids()
 cache = read_cache()
+date = datetime.now().isoformat()
 
 def check_cache():
     if cache is not None:
         data = update_lastcon()
         print('UPDATING SERVER')
-        up_cache = read_cache(data)
-        return count_days(up_cache)
+        new_cache = read_cache(data)
+        return count_days(new_cache)
     else:
         return register_device()
         
@@ -208,4 +209,34 @@ def count_days(cache):
         return time_diff.days
     else:
         print('CACHE IS NONE')
+        return None
+
+def check_license(key):
+    API_URL = "http://127.0.0.1:8000/license"
+    hw_id = get_hardware_ids()
+    if hw_id is None:
+        print("❌ Failed to generate hardware ID")
+        return None
+
+    # Payload with key and hw_id
+    payload = {
+        "key": key,
+        "hw_id": hw_id
+    }
+    
+    try:
+        response = requests.post(API_URL, json=payload)
+        response.raise_for_status()
+        data = response.json()
+        print(data)
+        
+        # if "license_key" in data:
+        #     print(f"LIC_KEY: {data['license_key']}")
+        #     return data
+        
+        # print("❌ Key not found in response!")
+        # return None
+
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Server Error: {e}")
         return None
