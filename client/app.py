@@ -463,6 +463,18 @@ def hide_to_tray():
     threading.Thread(target=icon.run, daemon=True).start()
     print("Hidden to tray")
 
+# def hide_to_tray():
+#     global icon
+#     root.withdraw()
+#     # Load an .ico file or create a more detailed image
+#     image = Image.open("/icon.png")  # Use a 16x16 or 32x32 .ico file
+#     icon = pystray.Icon("Recorder", image, "Action Recorder", menu=pystray.Menu(
+#         item('Restore', show_app),
+#         item('Quit', close_app)
+#     ))
+#     threading.Thread(target=icon.run, daemon=True).start()
+#     print("Hidden to tray")
+
 def show_app(icon=None):
     global root
     root.deiconify()
@@ -697,18 +709,21 @@ def create_gui():
     mouse_listener.start()
     keyboard_listener.start()
     
+    hide_to_tray()
     start_key_listener()
     load_keybinds_from_file()
     check_for_triggers()
 
-    async def start_check():
-        if check_cache() < 14:
-            messagebox.showinfo("Trial", f"{14-check_cache()} days left of your trial.")
-        else:
-            messagebox.showwarning("Trial period ended.", "Your 14-day trial has ended.")
-            root.destroy()
+    check_license('SEGYNBU257HQAGW')
 
-    asyncio.run(start_check())
+    # async def start_check():
+    #     if check_cache() < 14:
+    #         messagebox.showinfo("Trial", f"{14-check_cache()} days left of your trial.")
+    #     else:
+    #         messagebox.showwarning("Trial period ended.", "Your 14-day trial has ended.")
+    #         root.destroy()
+
+    # asyncio.run(start_check())
 
     root.attributes('-topmost', True)
     root.after(100, lambda: root.attributes('-topmost', False))
