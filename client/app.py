@@ -709,12 +709,12 @@ def create_gui():
     mouse_listener.start()
     keyboard_listener.start()
     
-    hide_to_tray()
+    # hide_to_tray()
     start_key_listener()
     load_keybinds_from_file()
     check_for_triggers()
-
-    check_license('SEGYNBU257HQAGW')
+    
+    check_license('G4IKKZUO79OZDI9')
 
     # async def start_check():
     #     if check_cache() < 14:
@@ -722,7 +722,6 @@ def create_gui():
     #     else:
     #         messagebox.showwarning("Trial period ended.", "Your 14-day trial has ended.")
     #         root.destroy()
-
     # asyncio.run(start_check())
 
     root.attributes('-topmost', True)

@@ -1,5 +1,4 @@
 from fastapi import FastAPI
-from fastapi import Request
 from db_utils import *
 app = FastAPI()
 
@@ -19,5 +18,3 @@ async def update_lastcon_endpoint(request:HW_ID_REQ):
 @app.post("/license")
 async def find_license_endpoint(request: LicenseCheck):
     return await find_license(request)
-# async def find_license_endpoint(request: ValidationRequest):
-#     return await find_license(request)
