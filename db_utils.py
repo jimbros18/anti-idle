@@ -5,6 +5,7 @@ import json
 from fastapi import HTTPException
 from pydantic import BaseModel
 import ast
+import re
 
 # Load environment variables
 load_dotenv()
@@ -288,14 +289,15 @@ class LicenseCheck(BaseModel):
 async def find_license(request: LicenseCheck):
     hw_id = request.hw_id
     key = request.key
+
     payload = {
             "requests": [
                 {
                     "type": "execute",
                     "stmt": {
                         "sql": "SELECT * FROM licenses WHERE license_key = ? AND hardware_id = ?",
-                        "args": [{"type": "text", "value": key},
-                                 {"type": "text", "value": hw_id}]
+                        "args": [{"type": "text", "value":key},
+                                {"type": "text", "value":hw_id}]
                     }
                 }
             ]
@@ -314,17 +316,15 @@ async def find_license(request: LicenseCheck):
             rows = select_result.get("rows", [])
 
             if not rows:
-                print("🚫 No matching license found.")
-                raise HTTPException(status_code=404, detail="License not found")
+                print("🚫 No matching license found.")    
+                return  {'error':"no license found"}
+                
 
             cols = [col["name"] for col in select_result["cols"]]
             row = rows[0]
             record = {cols[i]: cell["value"] for i, cell in enumerate(row)}
-
-            return {
-                "server message": "License found",
-                "data": record
-            }
+            return record
+        
         except ValueError:
             print(f"❌ Invalid JSON response: {response.text}")
             raise HTTPException(status_code=500, detail="Invalid database response")

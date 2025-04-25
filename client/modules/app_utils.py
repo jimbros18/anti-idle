@@ -47,8 +47,8 @@ def get_hardware_ids():
         
         # Join all IDs with '|'
         joined_hw_id = "|".join(hardware_ids)
-        # print("Generated hw_id:", joined_hw_id)
-        return joined_hw_id
+        cleaned_id = joined_hw_id.replace('\\','/' )
+        return cleaned_id
 
     except Exception as e:
         print(f"Error retrieving hardware IDs: {e}")
@@ -214,11 +214,11 @@ def count_days(cache):
 def check_license(key):
     API_URL = "http://127.0.0.1:8000/license"
     hw_id = get_hardware_ids()
+
     if hw_id is None:
         print("❌ Failed to generate hardware ID")
         return None
 
-    # Payload with key and hw_id
     payload = {
         "key": key,
         "hw_id": hw_id
@@ -228,14 +228,13 @@ def check_license(key):
         response = requests.post(API_URL, json=payload)
         response.raise_for_status()
         data = response.json()
-        print(data)
-        
-        # if "license_key" in data:
-        #     print(f"LIC_KEY: {data['license_key']}")
-        #     return data
-        
-        # print("❌ Key not found in response!")
-        # return None
+
+        if 'license_key' in data and 'hardware_id' in data:
+            print("Device is licensed.")
+            return data
+        elif 'error' in data:
+            print(data)
+            return None
 
     except requests.exceptions.RequestException as e:
         print(f"❌ Server Error: {e}")
