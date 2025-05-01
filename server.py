@@ -1,10 +1,25 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from db_utils import *
 app = FastAPI()
 
 @app.post("/validate")
 def validate_key_endpoint(request: ValidationRequest):
-    return validate_key(request)
+    try:
+        check = check_license(request.key)
+        if check['key'] == 'valid':
+            result = validate_key(request.key, request.hw_id, request.date)
+            print('validated')
+            if result['status'] == 'licensed':
+                print('finding key')
+                return find_key_id(request.key, request.hw_id)
+            return {"status": "invalid"}
+        return {"status": "invalid"}
+    except HTTPException as e:
+        print(f"endpoint error: {e.detail}")  # Minimal error log
+        raise
+    except Exception as e:
+        print(f"endpoint error: {e}")  # Minimal error log
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 @app.post("/reg_dev")
 async def reg_dev_endpoint(request: DeviceRegisterRequest):
@@ -12,9 +27,12 @@ async def reg_dev_endpoint(request: DeviceRegisterRequest):
 
 @app.post("/lastcon")
 async def update_lastcon_endpoint(request:HW_ID_REQ):
-    print(f"resib: {request.date}")
     return await server_lastcon(request)
 
+class LicenseRequest(BaseModel):
+    key: str
+    hw_id: str
+
 @app.post("/license")
-async def find_license_endpoint(request: LicenseCheck):
-    return await find_license(request)
+async def check_license_endpoint(request: LicenseRequest):
+    return check_license(request.key)

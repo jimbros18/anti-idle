@@ -16,7 +16,7 @@ import pickle
 import subprocess
 import sys
 import atexit
-import asyncio
+# import asyncio
 
 from modules.app_utils import *
 
@@ -538,9 +538,10 @@ def show_settings():
     print("Settings page shown, triggers paused")
 
 def show_info():
-    content = find_txt()
-    if content:
-        activate(content)
+    # content = find_txt()
+    key = read_serial(KEY_PATH)
+    if key:
+        activate(key['key'])
     else:    
         main_frame.pack_forget()
         sequence_frame.pack_forget()
@@ -548,13 +549,13 @@ def show_info():
         info_frm.pack(expand=True, fill=BOTH, padx=5, pady=5)
 
 def activate_btn(ser_key):
-    key = validate_key(ser_key)
-    content = find_txt()
-    if key is not None:
-        activate(content)
-    else:
-        print(key)
+    data = validate_key(ser_key)
+    if data is None:
+        print(f'app.py: {data}')
         info_lbl.config(text='Invalid serial key!')
+    elif data['status'] == 'licensed':
+        # print(f'activate: {data}')
+        activate(data)
 
 
 def activate(content):
@@ -563,15 +564,9 @@ def activate(content):
     settings_frame.pack_forget()
     info_frm.pack_forget()
     act_frm.pack(expand=True, fill=BOTH, padx=5, pady=5)
+    sk_entry.delete(0, END)  # Clear existing content
     sk_entry.insert(0,str(content))
     
-def find_txt():
-    file_path = 'client/serial_key.txt'
-    if os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8") as file:
-            content = file.read()
-            return content
-
 # ========================================== GUI variables ==============================================
 status_var = None
 app_name_var = None
@@ -714,15 +709,19 @@ def create_gui():
     load_keybinds_from_file()
     check_for_triggers()
     
-    check_license('G4IKKZUO79OZDI9')
-
-    # async def start_check():
-    #     if check_cache() < 14:
-    #         messagebox.showinfo("Trial", f"{14-check_cache()} days left of your trial.")
-    #     else:
-    #         messagebox.showwarning("Trial period ended.", "Your 14-day trial has ended.")
-    #         root.destroy()
-    # asyncio.run(start_check())
+    stat = status_check()
+    if stat is None:
+        messagebox.showwarning("Error.", "Please relaunch the app.")
+        root.destroy()
+        return
+    elif stat == 'licensed':
+        print('LICENSED')
+    elif stat <= 14:
+        messagebox.showinfo("Trial", f"{14-stat} days left of your trial.")
+    elif stat > 14:
+        messagebox.showwarning("Trial period ended.", "Your 14-day trial has ended.")
+        root.destroy()
+        return
 
     root.attributes('-topmost', True)
     root.after(100, lambda: root.attributes('-topmost', False))

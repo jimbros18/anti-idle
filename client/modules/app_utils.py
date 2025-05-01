@@ -3,11 +3,30 @@ import wmi
 from datetime import datetime
 import ctypes
 import os
-import ast
 import json
 
 TRIAL_FILE = "client/cache.txt"
+KEY_PATH = "client/serial_key.txt"
 
+def read_serial(KEY_PATH):
+    try:
+        if not os.path.exists(KEY_PATH):
+            print(f"❌ File not found: {KEY_PATH}")
+            return None
+        with open(KEY_PATH, 'r', encoding='utf-8') as file:
+            content = file.read().strip()
+            if not content:
+                print(f"❌ File is empty: {KEY_PATH}")
+                return None
+            print(f"Read file: {KEY_PATH}")
+            return json.loads(content)
+        
+    except PermissionError:
+        print(f"❌ Permission denied: {KEY_PATH}")
+        return None
+    except Exception as e:
+        print(f"❌ Error reading file: {e}")
+        return None
 
 def get_hardware_ids():
     try:
@@ -47,8 +66,9 @@ def get_hardware_ids():
         
         # Join all IDs with '|'
         joined_hw_id = "|".join(hardware_ids)
-        cleaned_id = joined_hw_id.replace('\\','/' )
-        return cleaned_id
+        filter1 = joined_hw_id.replace('\\','/' )
+        filter2 = filter1.replace(' ', '_')
+        return filter2
 
     except Exception as e:
         print(f"Error retrieving hardware IDs: {e}")
@@ -94,7 +114,16 @@ def read_cache(data=None):
 
 hw_id = get_hardware_ids()
 cache = read_cache()
-date = datetime.now().isoformat()
+
+def status_check():
+    key = read_serial(KEY_PATH)
+    if not key:
+        return check_cache()
+    status = check_license(key['key'])
+    if status == False:
+        return check_cache()
+    else:
+        return 'licensed'
 
 def check_cache():
     if cache is not None:
@@ -104,7 +133,7 @@ def check_cache():
         return count_days(new_cache)
     else:
         return register_device()
-        
+            
 def set_hidden_windows(file_path):
     """Set the hidden attribute on Windows."""
     try:
@@ -130,8 +159,8 @@ def register_device():
         try:
             data = response.json()
             if data:
-               content =  read_cache(data)
-               return count_days(content)
+                read_cache(data)
+                return count_days(data)
         
         except ValueError:
             print("❌ Invalid JSON response from server!")
@@ -142,7 +171,7 @@ def register_device():
         return None
     
     except requests.exceptions.RequestException as e:
-        print(f"❌register Server Error: {e}")
+        print(f"❌ register Server Error: {e}")
         return None
 
 def update_lastcon():
@@ -166,76 +195,71 @@ def update_lastcon():
     
 def validate_key(key):
     API_URL = "http://127.0.0.1:8000/validate"
-    # hw_id = get_hardware_ids()
+    hw_id = get_hardware_ids()
     date = datetime.now().isoformat()
     
     if hw_id is None:
         print("❌ Failed to generate hardware ID")
         return None
 
-    # Payload with key and hw_id
-    payload = {
-        "key": key,
-        "hw_id": hw_id,
-        "date": date
-    }
+    payload = {"key": key, "hw_id": hw_id, "date": date}
     
     try:
-        response = requests.post(API_URL, json=payload)
+        response = requests.post(API_URL, json=payload, timeout=10)
         response.raise_for_status()
         data = response.json()
-        
-        if "s_key" in data:
-            print(f"Serial Key valid: {data['s_key']}")
-            print(f"Hardware IDs: {hw_id}")
-            info = {"key": data['s_key'], "id": hw_id}
-            return info
-        
-        print("❌ Key not found in response!")
+        if data.get('key') == key:
+            os.makedirs("client", exist_ok=True)
+            with open('client/serial_key.txt', 'w', encoding="utf-8") as file:
+                json.dump(data, file)
+            print(f"validate: {data}")
+            return data
+        print(f"validate: Invalid response: {data}")
         return None
-
-    except requests.exceptions.RequestException as e:
+    except requests.exceptions.HTTPError as e:
         print(f"❌ Server Error: {e}")
+        print(f"Response: {e.response.text}")
+        if e.response.status_code == 400:
+            print("❌ This device is already licensed with another key.")
+        return None
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Network Error: {e}")
+        return None
+    except ValueError as e:
+        print(f"❌ JSON Error: {e}")
+        print(f"Response: {response.text}")
         return None
 
 def count_days(cache):
-    if cache is not None:
-        # data_dict = cache['data']
+    if cache is None:
+        print('CACHE IS NONE')
+        return None
+    try:
         reg_at = cache['data']['registered_at']
         dt_obj = datetime.fromisoformat(reg_at)
         now = datetime.now()
         time_diff = now - dt_obj
-        print(time_diff.days)
+        print(f"DAYS SINCE REGISTRATION: {time_diff.days}")
         return time_diff.days
-    else:
-        print('CACHE IS NONE')
+    except (KeyError, ValueError) as e:
+        print(f"Error processing cache: {e}. Cache content: {cache}")
         return None
 
 def check_license(key):
     API_URL = "http://127.0.0.1:8000/license"
-    hw_id = get_hardware_ids()
-
-    if hw_id is None:
+    if not hw_id:
         print("❌ Failed to generate hardware ID")
         return None
-
-    payload = {
-        "key": key,
-        "hw_id": hw_id
-    }
-    
+    payload = {"key": key, "hw_id": hw_id}
     try:
         response = requests.post(API_URL, json=payload)
         response.raise_for_status()
         data = response.json()
-
-        if 'license_key' in data and 'hardware_id' in data:
-            print("Device is licensed.")
-            return data
-        elif 'error' in data:
-            print(data)
-            return None
-
+        if data.get('key') == 'valid':
+            print("License valid")
+            return True
+        print("License invalid")
+        return False
     except requests.exceptions.RequestException as e:
         print(f"❌ Server Error: {e}")
         return None
