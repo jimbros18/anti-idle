@@ -1,5 +1,7 @@
 import time
 import ttkbootstrap as ttk
+# import tkinter.filedialog as filedialog
+from tkinter import END, filedialog, simpledialog, messagebox
 from ttkbootstrap.constants import *
 from pynput import mouse, keyboard
 from pynput.mouse import Button, Controller as MouseController
@@ -9,7 +11,7 @@ import threading
 import pystray
 from pystray import MenuItem as item
 from PIL import Image, ImageDraw
-from tkinter import END, filedialog, simpledialog, messagebox
+
 import json
 import os
 import pickle
@@ -202,27 +204,44 @@ def end_task():
 
 # ========================== File operations for sequences =======================================================
 def save_sequence():
-    global current_sequence_name
+    global events, current_sequence_name
+    # Check if there are events to save
     if not events:
         messagebox.showwarning("Warning", "No events to save")
         return
+    
+    # Ensure default save directory exists
     if not os.path.exists(default_save_dir):
         os.makedirs(default_save_dir)
-    if current_sequence_name == "Untitled":
-        name = simpledialog.askstring("Save Sequence", "Enter a name for this sequence:", initialvalue=current_sequence_name)
-        if name:
-            current_sequence_name = name
-        else:
-            return
-    if not current_sequence_name.endswith('.seq'):
-        current_sequence_name += '.seq'
-    file_path = os.path.join(default_save_dir, current_sequence_name)
-    try:
-        with open(file_path, 'wb') as f:
-            pickle.dump(events, f)
-        refresh_sequence_list()
-    except Exception as e:
-        messagebox.showerror("Error", f"Failed to save sequence: {e}")
+    
+    # Open standard file save dialog
+    initial_dir = os.path.abspath(default_save_dir)  # Default to default_save_dir
+    file_path = filedialog.asksaveasfilename(
+        initialdir=initial_dir,
+        title="Save Sequence",
+        defaultextension=".seq",
+        filetypes=[("Sequence files", "*.seq"), ("All files", "*.*")],
+        initialfile=current_sequence_name if current_sequence_name != "Untitled" else ""
+    )
+    
+    # Check if user selected a file (didn't cancel)
+    if file_path:
+        try:
+            # Update current_sequence_name based on selected file
+            current_sequence_name = os.path.basename(file_path)
+            if not current_sequence_name.endswith('.seq'):
+                current_sequence_name += '.seq'
+                file_path = os.path.join(os.path.dirname(file_path), current_sequence_name)
+            
+            # Save events using pickle
+            with open(file_path, 'wb') as f:
+                pickle.dump(events, f)
+            
+            # Refresh sequence list
+            refresh_sequence_list()
+            print(f"Sequence saved to {file_path}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save sequence: {e}")
 
 def load_sequence():
     global events, current_sequence_name
@@ -432,58 +451,83 @@ def drag_window(event):
     y = root.winfo_y() + deltay
     root.geometry(f"+{x}+{y}")
 
-def close_app():
-    global looping, icon, mouse_listener, keyboard_listener
-    looping = False
-    if mouse_listener:
-        mouse_listener.stop()
-    if keyboard_listener:
-        keyboard_listener.stop()
-    if icon:
-        icon.stop()
-        icon = None
-    stop_key_listener()
-    if os.path.exists("pause_listener.trigger"):
-        os.remove("pause_listener.trigger")  # Clean up pause file on exit
-    for key in [Key.shift_l, Key.shift_r, Key.ctrl_l, Key.ctrl_r, Key.alt_l, Key.alt_r]:
-        keyboard_ctrl.release(key)
-    root.destroy()
-    print("App fully closed")
-
+# icon = None
 def hide_to_tray():
     global icon
-    root.withdraw()
-    image = Image.new('RGB', (16, 16), color=(0, 0, 0))
-    draw = ImageDraw.Draw(image)
-    draw.rectangle((4, 4, 12, 12), fill=(255, 255, 255))
+    # If an icon already exists, stop it to prevent duplicates
+    if icon is not None:
+        try:
+            icon.stop()
+            icon = None
+            print("Existing tray icon stopped")
+        except Exception as e:
+            print(f"Error stopping existing tray icon: {e}")
+    
+    root.withdraw()  # Hide the window to start in system tray
+    try:
+        # Try loading a custom icon (ensure the path is correct)
+        image = Image.open("client/assets/icon.png")  # Updated path as per your code
+    except FileNotFoundError:
+        # Fallback to a simple black-and-white square if icon.png is missing
+        image = Image.new('RGB', (16, 16), color=(0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((4, 4, 12, 12), fill=(255, 255, 255))
+        print("Warning: icon.png not found, using fallback icon")
+    
+    # Create a new tray icon with proper callbacks
     icon = pystray.Icon("Recorder", image, "Action Recorder", menu=pystray.Menu(
-        item('Restore', show_app),
-        item('Quit', close_app)
+        item('Restore', lambda: show_app()),  # Use lambda to defer execution
+        item('Quit', lambda: close_app())     # Use lambda to defer execution
     ))
     threading.Thread(target=icon.run, daemon=True).start()
-    print("Hidden to tray")
-
-# def hide_to_tray():
-#     global icon
-#     root.withdraw()
-#     # Load an .ico file or create a more detailed image
-#     image = Image.open("/icon.png")  # Use a 16x16 or 32x32 .ico file
-#     icon = pystray.Icon("Recorder", image, "Action Recorder", menu=pystray.Menu(
-#         item('Restore', show_app),
-#         item('Quit', close_app)
-#     ))
-#     threading.Thread(target=icon.run, daemon=True).start()
-#     print("Hidden to tray")
+    print("Hidden to tray with new icon")
 
 def show_app(icon=None):
-    global root
+    global  root
+    # Restore the window
     root.deiconify()
     root.geometry("200x255+100+100")
     root.attributes('-topmost', True)
     root.update()
     root.attributes('-topmost', False)
     root.lift()
+    
+    # Stop the tray icon to remove it from the system tray
+    if icon is not None:
+        try:
+            icon.stop()
+            icon = None
+            print("Tray icon stopped on restore")
+        except Exception as e:
+            print(f"Error stopping tray icon on restore: {e}")
     print("Restored window")
+
+def close_app():
+    global looping, icon, mouse_listener, keyboard_listener
+    looping = False
+    # Stop listeners
+    if mouse_listener:
+        mouse_listener.stop()
+    if keyboard_listener:
+        keyboard_listener.stop()
+    # Stop tray icon if it exists
+    if icon:
+        try:
+            icon.stop()
+            icon = None
+            print("Tray icon stopped on close")
+        except Exception as e:
+            print(f"Error stopping tray icon on close: {e}")
+    # Stop key listener process
+    stop_key_listener()
+    # Clean up trigger file
+    if os.path.exists("client/pause_listener.trigger"):
+        os.remove("client/pause_listener.trigger")
+    # Release modifier keys
+    for key in [Key.shift_l, Key.shift_r, Key.ctrl_l, Key.ctrl_r, Key.alt_l, Key.alt_r]:
+        keyboard_ctrl.release(key)
+    root.destroy()
+    print("App fully closed")
 
 def check_for_triggers():
     global settings_active
@@ -655,6 +699,7 @@ def create_gui():
         "start_task": "Task:",
         "end_task": "End:"
     }
+
     for action, (modifier, key) in keybinds.items():
         frame = ttk.Frame(settings_frame)
         frame.pack(pady=2, padx=10, fill="x")
@@ -704,7 +749,6 @@ def create_gui():
     mouse_listener.start()
     keyboard_listener.start()
     
-    # hide_to_tray()
     start_key_listener()
     load_keybinds_from_file()
     check_for_triggers()
@@ -722,9 +766,10 @@ def create_gui():
         messagebox.showwarning("Trial period ended.", "Your 14-day trial has ended.")
         root.destroy()
         return
-
+    
     root.attributes('-topmost', True)
     root.after(100, lambda: root.attributes('-topmost', False))
+    # hide_to_tray()
     root.mainloop()
 
 if __name__ == "__main__":
