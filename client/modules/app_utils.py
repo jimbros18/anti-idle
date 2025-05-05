@@ -4,6 +4,7 @@ from datetime import datetime
 import ctypes
 import os
 import json
+from PIL import Image, ImageTk
 
 TRIAL_FILE = "client/cache.txt"
 KEY_PATH = "client/serial_key.txt"

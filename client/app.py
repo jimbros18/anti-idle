@@ -1,5 +1,7 @@
 import time
 import ttkbootstrap as ttk
+from ttkbootstrap.constants import *
+from ttkbootstrap.tooltip import ToolTip
 # import tkinter.filedialog as filedialog
 from tkinter import END, filedialog, simpledialog, messagebox
 from ttkbootstrap.constants import *
@@ -11,7 +13,6 @@ import threading
 import pystray
 from pystray import MenuItem as item
 from PIL import Image, ImageDraw
-
 import json
 import os
 import pickle
@@ -243,19 +244,19 @@ def save_sequence():
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save sequence: {e}")
 
-def load_sequence():
-    global events, current_sequence_name
-    if not os.path.exists(default_save_dir):
-        os.makedirs(default_save_dir)
-    file_path = filedialog.askopenfilename(initialdir=default_save_dir, title="Load Sequence", filetypes=(("Sequence files", "*.seq"), ("All files", "*.*")))
-    if file_path:
-        try:
-            with open(file_path, 'rb') as f:
-                events = pickle.load(f)
-            current_sequence_name = os.path.basename(file_path)
-            status_var.set(f"Loaded: {current_sequence_name} ({len(events)} events)")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to load sequence: {e}")
+# def load_sequence():
+#     global events, current_sequence_name
+#     if not os.path.exists(default_save_dir):
+#         os.makedirs(default_save_dir)
+#     file_path = filedialog.askopenfilename(initialdir=default_save_dir, title="Load Sequence", filetypes=(("Sequence files", "*.seq"), ("All files", "*.*")))
+#     if file_path:
+#         try:
+#             with open(file_path, 'rb') as f:
+#                 events = pickle.load(f)
+#             current_sequence_name = os.path.basename(file_path)
+#             status_var.set(f"Loaded: {current_sequence_name} ({len(events)} events)")
+#         except Exception as e:
+#             messagebox.showerror("Error", f"Failed to load sequence: {e}")
 
 def ask_to_save():
     if messagebox.askyesno("Save Sequence", "Do you want to save this sequence?"):
@@ -672,15 +673,93 @@ def create_gui():
     ttk.Label(main_frame, textvariable=status_var).pack(pady=5)
     btn_frame = ttk.Frame(main_frame)
     btn_frame.pack(pady=5)
-    ttk.Button(btn_frame, text="Start Rec", command=start_recording, bootstyle=SUCCESS).grid(row=0, column=0, padx=5, pady=5)
-    ttk.Button(btn_frame, text="Stop Rec", command=stop_recording, bootstyle=WARNING).grid(row=0, column=1, padx=5, pady=5)
-    ttk.Button(btn_frame, text="Start Task", command=start_task, bootstyle=INFO).grid(row=1, column=0, padx=5, pady=5)
-    ttk.Button(btn_frame, text="End Task", command=end_task, bootstyle=DANGER).grid(row=1, column=1, padx=5, pady=5)
+
+        # Click + style logic
+    def on_label_click(label_key):
+        for lbl in labels.values():
+            lbl.configure(style="TLabel")
+        labels[label_key].configure(style="Active.TLabel")
+        actions[label_key]()
+
+    def on_hover_enter(e):
+        e.widget.configure(style="Hover.TLabel")
+
+    def on_hover_leave(e):
+        if e.widget != active_label:
+            e.widget.configure(style="TLabel")
+
+    # Actions
+    def start_recording(): print("Recording started.")
+    def stop_recording(): print("Recording stopped.")
+    def start_task(): print("Task started.")
+    def end_task(): print("Task ended.")
+
+    # Styles
+    style = ttk.Style()
+    style.configure("TLabel", padding=10)
+    style.configure("Hover.TLabel", background="#666", foreground="white", padding=10)
+    style.configure("Active.TLabel", background="#5bc0de", foreground="white", padding=10, relief="groove")
+
+    labels = {}
+    actions = {
+        "start_rec": start_recording,
+        "stop_rec": stop_recording,
+        "start_task": start_task,
+        "end_task": end_task
+    }
+
+    tooltips = {
+    "start_rec": "Begin recording session",
+    "stop_rec": "Stop the recording",
+    "start_task": "Begin task execution",
+    "end_task": "Stop and finalize task"
+}
+    
+    active_label = None
+
+    def iconizer(image_path, size):
+            size = (size, size)
+            image = Image.open(image_path).resize(size, Image.LANCZOS)
+            return ImageTk.PhotoImage(image)
+
+        # Store icons to prevent garbage collection
+    icons = {
+        "start_rec": iconizer("client/assets/record.png", 20),
+        "stop_rec": iconizer("client/assets/stop.png", 20),
+        "start_task": iconizer("client/assets/play.png", 20),
+        "end_task": iconizer("client/assets/pause.png", 20),
+        "save": iconizer("client/assets/save.png", 20),
+        "load": iconizer("client/assets/folder.png", 20)
+    }
+
+    # Create interactive labels
+    for i, (key, text) in enumerate([
+        ("start_rec", "Start Rec"),
+        ("stop_rec", "Stop Rec"),
+        ("start_task", "Start Task"),
+        ("end_task", "End Task")
+    ]):
+        row, col = divmod(i, 2)
+        label = ttk.Label(btn_frame, text=text, image=icons[key], compound="top", style="TLabel")
+        label.grid(row=row, column=col, padx=5, pady=5)
+
+        label.bind("<Enter>", on_hover_enter)
+        label.bind("<Leave>", on_hover_leave)
+        label.bind("<Button-1>", lambda e, k=key: on_label_click(k))
+        ToolTip(label, text=tooltips[key])  # ✅ Use only ttkbootstrap's tooltip
+        labels[key] = label
+
+
+
+    # ttk.Button(btn_frame, text="Start Rec", image=start, command=start_recording, bootstyle=SUCCESS).grid(row=0, column=0, padx=5, pady=5)
+    # ttk.Button(btn_frame, text="Stop Rec", command=stop_recording, bootstyle=WARNING).grid(row=0, column=1, padx=5, pady=5)
+    # ttk.Button(btn_frame, text="Start Task", image=play, command=start_task, bootstyle=INFO).grid(row=1, column=0, padx=5, pady=5)
+    # ttk.Button(btn_frame, text="End Task", command=end_task, bootstyle=DANGER).grid(row=1, column=1, padx=5, pady=5)
     
     file_frame = ttk.Frame(main_frame)
     file_frame.pack(pady=5)
     ttk.Button(file_frame, text="Save", command=save_sequence, bootstyle=SUCCESS).grid(row=0, column=0, padx=5, pady=5)
-    ttk.Button(file_frame, text="Load", command=load_sequence, bootstyle=INFO).grid(row=0, column=1, padx=5, pady=5)
+    # ttk.Button(file_frame, text="Load", command=load_sequence, bootstyle=INFO).grid(row=0, column=1, padx=5, pady=5)
     
     nav_frame = ttk.Frame(main_frame)
     nav_frame.pack(pady=(10, 5))
