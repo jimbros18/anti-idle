@@ -19,7 +19,7 @@ import pickle
 import subprocess
 import sys
 import atexit
-# import asyncio
+from dataclasses import dataclass
 
 from modules.app_utils import *
 
@@ -81,7 +81,7 @@ SPECIAL_KEYS = {k.name: k for k in [
 DEFAULT_KEYBINDS = {
     "start_record": ["shift_l", "s"],
     "stop_record": ["shift_l", "p"],
-    "start_task": ["shift_l", "r"],
+    "play_task": ["shift_l", "r"],
     "end_task": ["shift_l", "q"]
 }
 
@@ -189,10 +189,10 @@ def loop_playback():
     playing = False
     print("loop_playback stopped")
 
-def start_task():
+def play_task():
     if not looping and events:
         status_var.set("Starting loop...")
-        print("start_task executed")
+        print("play_task executed")
         threading.Thread(target=loop_playback, daemon=True).start()
 
 def end_task():
@@ -422,7 +422,7 @@ def update_keybind_labels():
     action_map = {
         "start": "start_record",
         "stop": "stop_record",
-        "task": "start_task",
+        "task": "play_task",
         "end": "end_task"
     }
     for widget in settings_frame.winfo_children():
@@ -537,7 +537,7 @@ def check_for_triggers():
         root.after(100, check_for_triggers)
         return
     # print("Checking triggers...")
-    for command in ["start_recording", "stop_recording", "start_task", "end_task"]:
+    for command in ["start_recording", "stop_recording", "play_task", "end_task"]:
         trigger_file = f"{command}.trigger"
         if os.path.exists(trigger_file):
             print(f"Trigger file found: {trigger_file}")
@@ -674,24 +674,26 @@ def create_gui():
     btn_frame = ttk.Frame(main_frame)
     btn_frame.pack(pady=5)
 
-        # Click + style logic
-    def on_label_click(label_key):
-        for lbl in labels.values():
-            lbl.configure(style="TLabel")
-        labels[label_key].configure(style="Active.TLabel")
-        actions[label_key]()
+#=====================================================================================
+    btn_frame = None
 
-    def on_hover_enter(e):
-        e.widget.configure(style="Hover.TLabel")
+    # def on_label_click(label_key):
+    #     for lbl in labels.values():
+    #         lbl.configure(style="TLabel")
+    #     labels[label_key].configure(style="Active.TLabel")
+    #     actions[label_key]()
 
-    def on_hover_leave(e):
-        if e.widget != active_label:
-            e.widget.configure(style="TLabel")
+    # def on_hover_enter(e):
+    #     e.widget.configure(style="Hover.TLabel")
+
+    # def on_hover_leave(e):
+    #     if e.widget != active_label:
+    #         e.widget.configure(style="TLabel")
 
     # Actions
     def start_recording(): print("Recording started.")
     def stop_recording(): print("Recording stopped.")
-    def start_task(): print("Task started.")
+    def play_task(): print("Task started.")
     def end_task(): print("Task ended.")
 
     # Styles
@@ -700,71 +702,68 @@ def create_gui():
     style.configure("Hover.TLabel", background="#666", foreground="white", padding=10)
     style.configure("Active.TLabel", background="#5bc0de", foreground="white", padding=10, relief="groove")
 
-    labels = {}
-    actions = {
-        "start_rec": start_recording,
-        "stop_rec": stop_recording,
-        "start_task": start_task,
-        "end_task": end_task
-    }
-
-    tooltips = {
-    "start_rec": "Begin recording session",
-    "stop_rec": "Stop the recording",
-    "start_task": "Begin task execution",
-    "end_task": "Stop and finalize task"
-}
-    
-    active_label = None
-
     def iconizer(image_path, size):
-            size = (size, size)
-            image = Image.open(image_path).resize(size, Image.LANCZOS)
-            return ImageTk.PhotoImage(image)
+        size = (size, size)
+        image = Image.open(image_path).resize(size, Image.LANCZOS)
+        return ImageTk.PhotoImage(image)
 
-        # Store icons to prevent garbage collection
     icons = {
-        "start_rec": iconizer("client/assets/record.png", 20),
-        "stop_rec": iconizer("client/assets/stop.png", 20),
-        "start_task": iconizer("client/assets/play.png", 20),
-        "end_task": iconizer("client/assets/pause.png", 20),
-        "save": iconizer("client/assets/save.png", 20),
-        "load": iconizer("client/assets/folder.png", 20)
+    "rec": iconizer("client/assets/record.png", 20),
+    "stop": iconizer("client/assets/stop.png", 20),
+    "play": iconizer("client/assets/play.png", 20),
+    "end": iconizer("client/assets/pause.png", 20),
+    "save": iconizer("client/assets/save.png", 20),
+    "load": iconizer("client/assets/folder.png", 20)
     }
 
-    # Create interactive labels
-    for i, (key, text) in enumerate([
-        ("start_rec", "Start Rec"),
-        ("stop_rec", "Stop Rec"),
-        ("start_task", "Start Task"),
-        ("end_task", "End Task")
-    ]):
-        row, col = divmod(i, 2)
-        label = ttk.Label(btn_frame, text=text, image=icons[key], compound="top", style="TLabel")
-        label.grid(row=row, column=col, padx=5, pady=5)
+    @dataclass
+    class btn_con:
+        icon: object
+        func: callable
+        tooltip: str
 
-        label.bind("<Enter>", on_hover_enter)
-        label.bind("<Leave>", on_hover_leave)
-        label.bind("<Button-1>", lambda e, k=key: on_label_click(k))
-        ToolTip(label, text=tooltips[key])  # ✅ Use only ttkbootstrap's tooltip
-        labels[key] = label
+    btns = {
+        'record': btn_con(icons["rec"],start_recording(), 'Record'),
+        'stop': btn_con(icons['stop'], stop_recording(), 'stop'),
+        'play': btn_con(icons["play"], play_task(), 'play' ),
+        'end': btn_con(icons["end"], end_task(), 'end'),
+        'load': btn_con(icons["load"], load_specific_sequence, 'import')
+    }
 
+    # Row 1 frame
+    row1 = ttk.Frame(main_frame)
+    row1.pack()
+    for key in ['record', 'stop']:
+        config = btns[key]
+        btn = ttk.Button(row1, text=key.capitalize(), image=config.icon, command=config.func)
+        btn.pack(side="left", padx=5, pady=5)
+        ToolTip(btn, config.tooltip)
 
+    # Row 2 frame
+    row2 = ttk.Frame(main_frame)
+    row2.pack()
+    for key in ['play', 'end']:
+        config = btns[key]
+        btn = ttk.Button(row2, text=key.capitalize(), image=config.icon, command=config.func)
+        btn.pack(side="left", padx=5, pady=5)
+        ToolTip(btn, config.tooltip)
+
+#==========================================================
 
     # ttk.Button(btn_frame, text="Start Rec", image=start, command=start_recording, bootstyle=SUCCESS).grid(row=0, column=0, padx=5, pady=5)
     # ttk.Button(btn_frame, text="Stop Rec", command=stop_recording, bootstyle=WARNING).grid(row=0, column=1, padx=5, pady=5)
-    # ttk.Button(btn_frame, text="Start Task", image=play, command=start_task, bootstyle=INFO).grid(row=1, column=0, padx=5, pady=5)
+    # ttk.Button(btn_frame, text="Start Task", image=play, command=play_task, bootstyle=INFO).grid(row=1, column=0, padx=5, pady=5)
     # ttk.Button(btn_frame, text="End Task", command=end_task, bootstyle=DANGER).grid(row=1, column=1, padx=5, pady=5)
     
-    file_frame = ttk.Frame(main_frame)
-    file_frame.pack(pady=5)
-    ttk.Button(file_frame, text="Save", command=save_sequence, bootstyle=SUCCESS).grid(row=0, column=0, padx=5, pady=5)
+    # file_frame = ttk.Frame(main_frame)
+    # file_frame.pack(pady=5)
+    # ttk.Button(file_frame, text="Save", command=save_sequence, bootstyle=SUCCESS).grid(row=0, column=0, padx=5, pady=5)
     # ttk.Button(file_frame, text="Load", command=load_sequence, bootstyle=INFO).grid(row=0, column=1, padx=5, pady=5)
     
-    nav_frame = ttk.Frame(main_frame)
-    nav_frame.pack(pady=(10, 5))
-    ttk.Button(nav_frame, text="Sequences", command=show_sequences, bootstyle=PRIMARY).pack(side=LEFT, padx=2)
-    ttk.Button(nav_frame, text="Settings", command=show_settings, bootstyle=SECONDARY).pack(side=LEFT, padx=2)
+    # nav_frame = ttk.Frame(main_frame)
+    # nav_frame.pack(pady=(10, 5))
+    # ttk.Button(nav_frame, text="Sequences", command=show_sequences, bootstyle=PRIMARY).pack(side=LEFT, padx=2)
+    # ttk.Button(nav_frame, text="Settings", command=show_settings, bootstyle=SECONDARY).pack(side=LEFT, padx=2)
     
     settings_frame = ttk.Frame(root)
     title_frame = ttk.Frame(settings_frame)
@@ -775,7 +774,7 @@ def create_gui():
     action_labels = {
         "start_record": "Start:",
         "stop_record": "Stop:",
-        "start_task": "Task:",
+        "play_task": "Task:",
         "end_task": "End:"
     }
 

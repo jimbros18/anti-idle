@@ -6,6 +6,12 @@ import os
 import json
 from PIL import Image, ImageTk
 
+import ttkbootstrap as ttk
+from ttkbootstrap.constants import *
+from ttkbootstrap.tooltip import ToolTip
+# import tkinter.filedialog as filedialog
+from tkinter import END, filedialog, simpledialog, messagebox
+
 TRIAL_FILE = "client/cache.txt"
 KEY_PATH = "client/serial_key.txt"
 
