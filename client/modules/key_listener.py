@@ -10,9 +10,8 @@ KEYBINDS_FILE = "client/keybinds.json"
 # Command names that will be executed
 COMMANDS = {
     "start_record": "start_recording",
-    "stop_record": "stop_recording",
-    "start_task": "start_task",
-    "end_task": "end_task"
+    "stop": "stop",
+    "start_task": "play_task",
 }
 
 # Special keys mapping
@@ -119,10 +118,9 @@ def main():
     if not load_keybinds():
         print("No valid keybinds found. Creating default keybinds file...")
         default_keybinds = {
-            "start_record": ["shift_l", "s"],
-            "stop_record": ["shift_l", "p"],
-            "start_task": ["shift_l", "r"],
-            "end_task": ["shift_l", "q"]
+            "start_record": ["shift_l", "r"],
+            "stop": ["shift_l", "q"],
+            "start_task": ["shift_l", "s"]
         }
         with open(KEYBINDS_FILE, 'w') as f:
             json.dump({"app_name": "Recorder", "keybinds": default_keybinds}, f, indent=2)

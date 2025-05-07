@@ -1,8 +1,6 @@
 import time
 import ttkbootstrap as ttk
-from ttkbootstrap.constants import *
 from ttkbootstrap.tooltip import ToolTip
-# import tkinter.filedialog as filedialog
 from tkinter import END, filedialog, simpledialog, messagebox
 from ttkbootstrap.constants import *
 from pynput import mouse, keyboard
@@ -12,14 +10,15 @@ from pynput.keyboard import Listener
 import threading
 import pystray
 from pystray import MenuItem as item
-from PIL import Image, ImageDraw, ImageTk
+from PIL import Image, ImageDraw
+
 import json
 import os
 import pickle
 import subprocess
 import sys
 import atexit
-from dataclasses import dataclass
+# import asyncio
 
 from modules.app_utils import *
 
@@ -79,9 +78,10 @@ SPECIAL_KEYS = {k.name: k for k in [
 
 # Default keybinds (matching key_listener.py)
 DEFAULT_KEYBINDS = {
-    "start_record": ["shift_l", "r"],
-    "stop": ["shift_l", "q"],
-    "play_task": ["shift_l", "s"]
+    "start_record": ["shift_l", "s"],
+    "stop_record": ["shift_l", "p"],
+    "start_task": ["shift_l", "r"],
+    "end_task": ["shift_l", "q"]
 }
 
 # File to store keybinds
@@ -113,7 +113,7 @@ def on_release(key):
         events.append(('key_release', key, time.time()))
 
 # ============================== Record and playback functions ===================================
-def start_recording(event=None):
+def start_recording():
     global recording, current_sequence_name
     if not recording:
         current_sequence_name = "Untitled"
@@ -122,16 +122,8 @@ def start_recording(event=None):
         status_var.set("Recording started...")
         print("start_recording executed")
 
-def stop(event=None):
-    global looping, recording
-    # Call end_task
-    looping = False
-    status_var.set("Event stopped.")
-    for key in [Key.shift_l, Key.shift_r, Key.ctrl_l, Key.ctrl_r, Key.alt_l, Key.alt_r]:
-        keyboard_ctrl.release(key)
-    print("end_task executed")
-    
-    # Call stop_recording
+def stop_recording():
+    global recording
     if recording:
         recording = False
         if events:
@@ -139,6 +131,7 @@ def stop(event=None):
             root.after(0, ask_to_save)
         else:
             status_var.set("Recording stopped (no events)")
+        update_task_button_states()
         print("stop_recording executed")
 
 def playback():
@@ -192,18 +185,39 @@ def loop_playback():
                 time.sleep(min(0.1, LOOP_INTERVAL - elapsed))
                 elapsed += 0.1
             print(f"Loop interval completed: {LOOP_INTERVAL}s")
-    status_var.set("Event stopped.")
+    status_var.set("Task stopped.")
     playing = False
     print("loop_playback stopped")
 
-def play_task(event=None):
+def start_task():
     if not looping and events:
         status_var.set("Starting loop...")
-        print("play_task executed")
+        print("start_task executed")
         threading.Thread(target=loop_playback, daemon=True).start()
 
+def end_task():
+    global looping
+    looping = False
+    status_var.set("Stopping task...")
+    for key in [Key.shift_l, Key.shift_r, Key.ctrl_l, Key.ctrl_r, Key.alt_l, Key.alt_r]:
+        keyboard_ctrl.release(key)
+    print("end_task executed")
 
 # ========================== File operations for sequences =======================================================
+btn_frame = None
+start_task_btn = None
+end_task_btn = None
+
+def update_task_button_states():
+    """Enable or disable Start Task and End Task buttons based on events."""
+    if btn_frame is None or start_task_btn is None or end_task_btn is None:
+        print("Debug: btn_frame or buttons not initialized, skipping button state update")
+        return
+    state = NORMAL if events else DISABLED
+    start_task_btn.config(state=state)
+    end_task_btn.config(state=state)
+    print(f"Debug: Button states updated to {state} for Start Task and End Task")
+
 def save_sequence():
     global events, current_sequence_name
     # Check if there are events to save
@@ -240,11 +254,12 @@ def save_sequence():
             
             # Refresh sequence list
             refresh_sequence_list()
+            update_task_button_states()
             print(f"Sequence saved to {file_path}")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save sequence: {e}")
 
-def load_sequence(event=None):
+def load_sequence():
     global events, current_sequence_name
     if not os.path.exists(default_save_dir):
         os.makedirs(default_save_dir)
@@ -252,11 +267,20 @@ def load_sequence(event=None):
     if file_path:
         try:
             with open(file_path, 'rb') as f:
-                events = pickle.load(f)
+                loaded_events = pickle.load(f)
+            # Validate loaded data
+            if not isinstance(loaded_events, list):
+                raise ValueError("Loaded file does not contain a valid event list")
+            events = loaded_events
             current_sequence_name = os.path.basename(file_path)
             status_var.set(f"Loaded: {current_sequence_name} ({len(events)} events)")
+            print(f"Debug: Loaded {len(events)} events from {file_path}")
+            update_task_button_states()  # Update button states after loading
         except Exception as e:
+            print(f"Debug: Error loading sequence: {e}")
             messagebox.showerror("Error", f"Failed to load sequence: {e}")
+            events = []  # Reset events to empty list on failure
+            update_task_button_states()
 
 def ask_to_save():
     if messagebox.askyesno("Save Sequence", "Do you want to save this sequence?"):
@@ -291,29 +315,33 @@ def create_sequence_item(parent, filename):
     frame.pack(fill=X, pady=2)
     name_btn = ttk.Button(frame, text=filename, bootstyle=DEFAULT, command=lambda: load_specific_sequence(filename))
     name_btn.pack(side=LEFT, fill=X, expand=True, padx=(0, 5))
-    main_btn_frame = ttk.Frame(frame)
-    main_btn_frame.pack(side=RIGHT)
-    ttk.Button(main_btn_frame, text="🔄", width=2, bootstyle=INFO, command=lambda: rename_sequence(filename)).pack(side=LEFT, padx=1)
-    ttk.Button(main_btn_frame, text="❌", width=2, bootstyle=DANGER, command=lambda: delete_sequence(filename)).pack(side=LEFT, padx=1)
+    btn_frame = ttk.Frame(frame)
+    btn_frame.pack(side=RIGHT)
+    ttk.Button(btn_frame, text="🔄", width=2, bootstyle=INFO, command=lambda: rename_sequence(filename)).pack(side=LEFT, padx=1)
+    ttk.Button(btn_frame, text="❌", width=2, bootstyle=DANGER, command=lambda: delete_sequence(filename)).pack(side=LEFT, padx=1)
     return frame
 
 def load_specific_sequence(filename):
     global events, current_sequence_name
-    # Ensure filename is a string (in case an Event object is passed)
-    if not isinstance(filename, str):
-        messagebox.showerror("Error", "Invalid filename provided")
-        return
-    
     file_path = os.path.join(default_save_dir, filename)
     if os.path.exists(file_path):
         try:
             with open(file_path, 'rb') as f:
-                events = pickle.load(f)
+                loaded_events = pickle.load(f)
+            # Validate loaded data
+            if not isinstance(loaded_events, list):
+                raise ValueError("Loaded file does not contain a valid event list")
+            events = loaded_events
             current_sequence_name = filename
             status_var.set(f"Loaded: {filename} ({len(events)} events)")
             show_main()
+            print(f"Debug: Loaded {len(events)} events from {file_path}")
+            update_task_button_states()  # Update button states after loading
         except Exception as e:
+            print(f"Debug: Error loading sequence: {e}")
             messagebox.showerror("Error", f"Failed to load sequence: {e}")
+            events = []  # Reset events to empty list on failure
+            update_task_button_states()  # Ensure buttons are disabled
 
 def refresh_sequence_list():
     for widget in sequence_frame.winfo_children():
@@ -427,7 +455,7 @@ def update_keybind_labels():
     action_map = {
         "start": "start_record",
         "stop": "stop_record",
-        "task": "play_task",
+        "task": "start_task",
         "end": "end_task"
     }
     for widget in settings_frame.winfo_children():
@@ -446,52 +474,6 @@ def update_keybind_labels():
                     keybind_label.config(text=f"{modifier}+{key}")
 
 # =============================== Window management =====================================
-window_w = 300
-window_h = 150
-
-def center_window(root, width, height):
-    """Center the window on the primary screen."""
-    root.update_idletasks()  # Ensure window metrics are ready
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
-    x = (screen_width - 1000) // 2
-    y = (screen_height - 500) // 2
-    root.geometry(f"{width}x{height}+{x}+{y}")
-
-
-def on_start_app(window_w,window_h):
-    global root, icon
-    # Get screen and window dimensions
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
-    x = (screen_width - window_w) // 2
-    y = (screen_height - window_h) // 2
-
-    # Initialize the window at the center
-    root.geometry(f"{window_w}x{window_h}+{x}+{y}")
-    root.attributes('-topmost', True)
-    root.update()
-    root.attributes('-topmost', False)
-    root.lift()
-
-    # Create system tray icon
-    try:
-        image = Image.open("client/assets/icon.png")
-    except FileNotFoundError:
-        image = Image.new('RGB', (16, 16), color=(0, 0, 0))
-        draw = ImageDraw.Draw(image)
-        draw.rectangle((4, 4, 12, 12), fill=(255, 255, 255))
-        print("Warning: icon.png not found, using fallback icon")
-
-    icon = pystray.Icon("Recorder", image, "Action Recorder", menu=pystray.Menu(
-        item('Restore', lambda: show_app( window_w, window_h)),
-        # item('Restore', lambda: show_app(icon)),  # Pass icon to show_app
-        item('Hide', lambda: root.withdraw()),    # Hide window without creating new icon
-        item('Quit', lambda: close_app())
-    ))
-    threading.Thread(target=icon.run, daemon=True).start()
-    print("App started with tray icon")
-
 def start_drag(event):
     root.x = event.x
     root.y = event.y
@@ -503,27 +485,56 @@ def drag_window(event):
     y = root.winfo_y() + deltay
     root.geometry(f"+{x}+{y}")
 
+# icon = None
 def hide_to_tray():
-    root.withdraw()
-    print("Window hidden to tray")
+    global icon
+    # If an icon already exists, stop it to prevent duplicates
+    if icon is not None:
+        try:
+            icon.stop()
+            icon = None
+            print("Existing tray icon stopped")
+        except Exception as e:
+            print(f"Error stopping existing tray icon: {e}")
+    
+    root.withdraw()  # Hide the window to start in system tray
+    try:
+        # Try loading a custom icon (ensure the path is correct)
+        image = Image.open("client/assets/icon.png")  # Updated path as per your code
+    except FileNotFoundError:
+        # Fallback to a simple black-and-white square if icon.png is missing
+        image = Image.new('RGB', (16, 16), color=(0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((4, 4, 12, 12), fill=(255, 255, 255))
+        print("Warning: icon.png not found, using fallback icon")
+    
+    # Create a new tray icon with proper callbacks
+    icon = pystray.Icon("Recorder", image, "Action Recorder", menu=pystray.Menu(
+        item('Restore', lambda: show_app()),  # Use lambda to defer execution
+        item('Quit', lambda: close_app())     # Use lambda to defer execution
+    ))
+    threading.Thread(target=icon.run, daemon=True).start()
+    print("Hidden to tray with new icon")
 
-# def show_app(icon=None, window_w, window_h):
-def show_app( window_w, window_h):
-    global root
-    # Get screen and window dimensions
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
-    x = (screen_width - window_w) // 2
-    y = (screen_height - window_h) // 2
-
+def show_app(icon=None):
+    global  root
+    # Restore the window
     root.deiconify()
-    root.geometry(f"{window_w}x{window_h}+{x}+{y}")
+    root.geometry("200x255+100+100")
     root.attributes('-topmost', True)
     root.update()
     root.attributes('-topmost', False)
     root.lift()
+    
+    # Stop the tray icon to remove it from the system tray
+    if icon is not None:
+        try:
+            icon.stop()
+            icon = None
+            print("Tray icon stopped on restore")
+        except Exception as e:
+            print(f"Error stopping tray icon on restore: {e}")
     print("Restored window")
-
 
 def close_app():
     global looping, icon, mouse_listener, keyboard_listener
@@ -559,7 +570,7 @@ def check_for_triggers():
         root.after(100, check_for_triggers)
         return
     # print("Checking triggers...")
-    for command in ["start_recording", "stop", "play_task"]:
+    for command in ["start_recording", "stop_recording", "start_task", "end_task"]:
         trigger_file = f"{command}.trigger"
         if os.path.exists(trigger_file):
             print(f"Trigger file found: {trigger_file}")
@@ -573,11 +584,10 @@ def check_for_triggers():
 
 # ================================= Navigation functions ===================================
 def show_main():
-    # center_window(root, 300, 150)
     global settings_active
     settings_frame.pack_forget()
     sequence_frame.pack_forget()
-    main_tab.pack(expand=True, fill=BOTH, padx=5, pady=5)
+    main_frame.pack(expand=True, fill=BOTH, padx=5, pady=5)
     settings_active = False
     if os.path.exists("client/pause_listener.trigger"):
         os.remove("client/pause_listener.trigger")
@@ -585,7 +595,7 @@ def show_main():
 
 def show_sequences():
     global settings_active
-    main_tab.pack_forget()
+    main_frame.pack_forget()
     settings_frame.pack_forget()
     sequence_frame.pack(expand=True, fill=BOTH, padx=5, pady=5)
     settings_active = False
@@ -594,9 +604,8 @@ def show_sequences():
     print("Sequences page shown, triggers resumed")
 
 def show_settings():
-    # center_window(root, 230, 255)
     global settings_active
-    main_tab.pack_forget()
+    main_frame.pack_forget()
     sequence_frame.pack_forget()
     info_frm.pack_forget()
     act_frm.pack_forget()
@@ -612,7 +621,7 @@ def show_info():
     if key:
         activate(key['key'])
     else:    
-        main_tab.pack_forget()
+        main_frame.pack_forget()
         sequence_frame.pack_forget()
         settings_frame.pack_forget()
         info_frm.pack(expand=True, fill=BOTH, padx=5, pady=5)
@@ -628,24 +637,19 @@ def activate_btn(ser_key):
 
 
 def activate(content):
-    main_tab.pack_forget()
+    main_frame.pack_forget()
     sequence_frame.pack_forget()
     settings_frame.pack_forget()
     info_frm.pack_forget()
     act_frm.pack(expand=True, fill=BOTH, padx=5, pady=5)
     sk_entry.delete(0, END)  # Clear existing content
     sk_entry.insert(0,str(content))
-
-def iconizer(image_path, size):
-        size = (size, size)
-        image = Image.open(image_path).resize(size, Image.LANCZOS)
-        return ImageTk.PhotoImage(image)
     
 # ========================================== GUI variables ==============================================
 status_var = None
 app_name_var = None
 root = None
-main_tab = None
+main_frame = None
 settings_frame = None
 sequence_frame = None
 info_frm = None
@@ -661,18 +665,51 @@ info_lbl = None
 
 
 
+def center_window(root, width, height):
+    """Center the window on the primary screen."""
+    root.update_idletasks()  # Ensure window metrics are ready
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    x = (screen_width - width) // 2
+    y = (screen_height - height) // 2
+    root.geometry(f"{width}x{height}+{x}+{y}")
+
 def create_gui():
-    global status_var, app_name_var, root, main_tab, settings_frame, sequence_frame, ser_key, sk_entry, info_lbl
+    global status_var, app_name_var, root, main_frame, settings_frame, sequence_frame, ser_key, sk_entry, info_lbl
     global title_label, sequence_title_frame, mouse_listener, keyboard_listener, info_frm, act_frm, act_lbl
+    global btn_frame, start_task_btn, end_task_btn
+
 
     root = ttk.Window(themename='darkly')
+    # root.geometry("200x255")
     root.overrideredirect(True)
     root.resizable(False, False)
     
     app_name_var = ttk.StringVar(value=DEFAULT_APP_NAME)
     root.title(app_name_var.get())
 
+    # Define window size
+    WINDOW_WIDTH = 200
+    WINDOW_HEIGHT = 255
+    center_window(root, WINDOW_WIDTH, WINDOW_HEIGHT)
 
+     #=========================================
+    from PIL import Image, ImageTk
+    def resize_image(path, max_size):
+        image = Image.open(path)
+        image.thumbnail(max_size, Image.Resampling.LANCZOS)  # Preserves aspect ratio
+        return ImageTk.PhotoImage(image)
+        # icon = PhotoImage(file="client/assets/icon.png") 
+    icon = resize_image("client/assets/icon.png", (50, 50))
+    settings = resize_image("client/assets/settings.png", (50, 50))
+    record = resize_image("client/assets/record.png", (50, 50))
+    stop = resize_image("client/assets/stop.png",(50, 50))
+    play = resize_image("client/assets/play.png", (50, 50))
+    pause = resize_image("client/assets/pause.png", (50, 50))
+    save = resize_image("client/assets/save.png", (50, 50))
+    load = resize_image("client/assets/import.png", (50, 50))
+    #=========================================
+    
     title_bar = ttk.Frame(root, bootstyle="dark")
     title_bar.pack(fill=X, pady=0, ipady=5)
     title_label = ttk.Label(title_bar, text=app_name_var.get(), bootstyle="inverse-dark")
@@ -684,93 +721,47 @@ def create_gui():
     
     status_var = ttk.StringVar(value="Ready")
     
-    main_tab = ttk.Frame(root)
-    main_tab.pack(expand=True, fill=BOTH, padx=5, pady=5)
-    
-    ttk.Label(main_tab, textvariable=status_var).pack(pady=5)
+    main_frame = ttk.Frame(root)
+    main_frame.pack(expand=True, fill=BOTH, padx=5, pady=5)
 
-    main_btn_frame = ttk.Frame(main_tab)
-    main_btn_frame.pack(pady=5)
+    # Inside main_frame, create a header row frame
+    header_frame = ttk.Frame(main_frame)
+    header_frame.pack(fill='x')  # Fills horizontally
 
-#=====================================================================================
+    # Add the settings button to the right side
+    set_btn = ttk.Label(header_frame, image=settings, bootstyle=PRIMARY, anchor='e')
+    set_btn.pack(side=RIGHT, padx=(2, 10), pady=(2, 2))
+    set_btn.bind("<Button-1>", lambda e: show_settings())
+    ToolTip(set_btn, text="Settings")
 
-    # Styles
-    style = ttk.Style()
-    style.configure("TLabel")  # Default style
-    style.configure("Hover.TLabel", background="#5cc977")  # Hover style (same background, icon will change)
-    style.configure("Active.TLabel", background="#1f1f1f")  # Active style (same background, icon will change)
 
-    labels = {}  # Maps key to ttk.Label widget
-    actions = {}  # Maps key to function to call on click
-    active_label = None  # Tracks the currently active label
+  
+    ttk.Label(main_frame, textvariable=status_var).pack(pady=5)
+    btn_frame = ttk.Frame(main_frame)
+    btn_frame.pack(pady=5)
+   
+   # Button creation as provided
+    ttk.Button(btn_frame, text="Start Rec", command=start_recording, bootstyle=SUCCESS).grid(row=0, column=0, padx=5, pady=5)
+    ttk.Button(btn_frame, text="Stop Rec", command=stop_recording, bootstyle=WARNING).grid(row=0, column=1, padx=5, pady=5)
+    start_task_btn = ttk.Button(btn_frame, text="Start Task", command=start_task, bootstyle=INFO, state=DISABLED)
+    start_task_btn.grid(row=1, column=0, padx=5, pady=5)
+    end_task_btn = ttk.Button(btn_frame, text="End Task", command=end_task, bootstyle=DANGER, state=DISABLED)
+    end_task_btn.grid(row=1, column=1, padx=5, pady=5)
+    print(f"Debug: Buttons created - Start Task at row=1,col=0: {btn_frame.grid_slaves(row=1, column=0)}")
+    print(f"Debug: Buttons created - End Task at row=1,col=1: {btn_frame.grid_slaves(row=1, column=1)}")
+    update_task_button_states()
 
-    # Define event handlers
-    def on_label_click(label_key):
-        global active_label
-        for key, lbl in labels.items():
-            lbl.configure(style="TLabel", image=def_icons[key])  # Reset to default icon
-        # Set active icon if available, otherwise keep default
-        active_image = active_icons.get(label_key, def_icons[label_key])
-        labels[label_key].configure(style="Active.TLabel", image=active_image)
-        active_label = labels[label_key]
-        actions[label_key]()
-
-    def on_hover_enter(e):
-        if e.widget != active_label:
-            # Find the key for this widget
-            for key, lbl in labels.items():
-                if lbl == e.widget:
-                    # Use active icon for hover if available, otherwise keep default
-                    hover_image = active_icons.get(key, def_icons[key])
-                    e.widget.configure(style="Hover.TLabel", image=hover_image)
-                    break
-
-    def on_hover_leave(e):
-        if e.widget != active_label:
-            # Find the key for this widget
-            for key, lbl in labels.items():
-                if lbl == e.widget:
-                    e.widget.configure(style="TLabel", image=def_icons[key])
-                    break
+    # ttk.Label(btn_frame, text="Start Rec", image=record, bootstyle=SUCCESS).grid(row=0, column=0, padx=5, pady=1); btn_frame.grid_slaves(0, 0)[0].bind("<Button-1>", lambda e: start_recording())
+    # ttk.Label(btn_frame, text="Stop Rec", image=stop, bootstyle=WARNING).grid(row=0, column=1, padx=5, pady=1); btn_frame.grid_slaves(0, 1)[0].bind("<Button-1>", lambda e: stop_recording())
+    # ttk.Label(btn_frame, text="Start Task", image=play, bootstyle=INFO).grid(row=1, column=0, padx=5, pady=1); btn_frame.grid_slaves(1, 0)[0].bind("<Button-1>", lambda e: start_task())
+    # ttk.Label(btn_frame, text="End Task", image=pause, bootstyle=DANGER).grid(row=1, column=1, padx=5, pady=1); btn_frame.grid_slaves(1, 1)[0].bind("<Button-1>", lambda e: end_task())
 
     
-
-    def_icons = {
-        "record": iconizer("client/assets/record.png", 40),
-        "stop": iconizer("client/assets/stop.png", 40),
-        "play": iconizer("client/assets/play.png", 40),
-        "load": iconizer("client/assets/folder.png", 40),
-        "settings" : iconizer("client/assets/settings.png", 40)
-    }
-
-    active_icons = {
-        "record": iconizer("client/assets/active_rec.png", 40),
-        "stop": iconizer("client/assets/active_stop.png", 40),
-        "play": iconizer("client/assets/active_play.png", 40)
-    }
-
-    @dataclass
-    class btn_con:
-        icon: object
-        func: callable
-        tooltip: str
-
-    btns = {
-        'record': btn_con(def_icons["record"], start_recording, 'Record'),
-        'stop': btn_con(def_icons['stop'], stop, 'stop'),
-        'play': btn_con(def_icons["play"], play_task, 'play'),
-        'load': btn_con(def_icons["load"], load_sequence, 'import'),
-        'settings': btn_con(def_icons["settings"], show_settings, 'settings')
-    }
-
-    for name, config in btns.items():
-        btn = ttk.Label(main_btn_frame, image=config.icon, cursor="hand2")  # Changed style from PRIMARY to TLabel
-        btn.pack(side="left", padx=1, pady=(20,1))
-        btn.bind("<Button-1>", lambda e, f=config.func: f())
-        btn.bind("<Enter>", on_hover_enter)  # Bind hover enter
-        btn.bind("<Leave>", on_hover_leave)  # Bind hover leave
-        ToolTip(btn, config.tooltip)
-
+    file_frame = ttk.Frame(main_frame)
+    file_frame.pack(pady=1)
+    # ttk.Button(file_frame, text="Save", command=save_sequence, bootstyle=SUCCESS).grid(row=0, column=0, padx=5, pady=5)
+    ttk.Button(file_frame, text="Load", command=load_sequence, bootstyle=INFO).grid(row=0, column=1, padx=5, pady=5)
+    
     settings_frame = ttk.Frame(root)
     title_frame = ttk.Frame(settings_frame)
     title_frame.pack(pady=2)
@@ -778,31 +769,26 @@ def create_gui():
     ttk.Entry(title_frame, textvariable=app_name_var, width=10).pack(side=LEFT)
     
     action_labels = {
-        "start_record": "Record:",
-        "stop": "Stop:",
-        "play_task": "Play:",
+        "start_record": "Start:",
+        "stop_record": "Stop:",
+        "start_task": "Task:",
+        "end_task": "End:"
     }
 
-    # Create a single frame to hold all keybind settings
-    keybind_row = ttk.Frame(settings_frame)
-    keybind_row.pack(pady=2, padx=10, fill="x")
-
     for action, (modifier, key) in keybinds.items():
-        # Create a frame for each keybind pair to keep label and keybind together
-        frame = ttk.Frame(keybind_row, height=20, width=10)
-        frame.pack(side="left", padx=5)  # Pack frames horizontally
-        ttk.Label(frame, text=action_labels[action], width=12, anchor='center').pack(side="top")
-        label_key = ttk.Label(frame, text=f"{modifier}+{key}", font=("Arial", 10), 
-                              cursor="hand2", style=INFO)
-        label_key.pack(side="bottom")
+        frame = ttk.Frame(settings_frame)
+        frame.pack(pady=2, padx=10, fill="x")
+        ttk.Label(frame, text=action_labels[action], width=10).pack(side=LEFT)
+        label_key = ttk.Label(frame, text=f"{modifier}+{key}", font=("Arial", 10), cursor="hand2")
+        label_key.pack(side=LEFT, padx=10)
         label_key.bind("<Button-1>", lambda event, a=action, l=label_key: record_keybind(l, a))
     
-    main_btn_frame = ttk.Frame(settings_frame)
-    main_btn_frame.pack(pady=5)
-    ttk.Button(main_btn_frame, text="Apply", command=apply_keybinds, bootstyle=SUCCESS).grid(row=0, column=0, padx=2)
-    ttk.Button(main_btn_frame, text="Default", command=reset_to_defaults, bootstyle=WARNING).grid(row=0, column=1, padx=2)
-    ttk.Button(main_btn_frame, text="Back", command=show_main, bootstyle=SECONDARY).grid(row=0, column=2, padx=2)
-    ttk.Button(main_btn_frame, text="i", command=show_info, bootstyle=SECONDARY).grid(row=0, column=3, padx=2)
+    btn_frame = ttk.Frame(settings_frame)
+    btn_frame.pack(pady=5)
+    ttk.Button(btn_frame, text="Apply", command=apply_keybinds, bootstyle=SUCCESS).grid(row=0, column=0, padx=2)
+    ttk.Button(btn_frame, text="Default", command=reset_to_defaults, bootstyle=WARNING).grid(row=0, column=1, padx=2)
+    ttk.Button(btn_frame, text="Back", command=show_main, bootstyle=SECONDARY).grid(row=0, column=2, padx=2)
+    ttk.Button(btn_frame, text="i", command=show_info, bootstyle=SECONDARY).grid(row=1, column=2, padx=2, pady=20)
     
     info_frm = ttk.Frame(root)
     info_frm.grid_columnconfigure(0, weight=1)
@@ -814,16 +800,13 @@ def create_gui():
     ttk.Button(info_frm, text='Back', width=5, padding=(2,2), command=show_settings).grid(row=3, column=0, pady=(70,0), sticky='e')
 
     act_frm = ttk.Frame(root)
-    # Configure columns: smaller width for column 0, larger for columns 1 and 2
-    act_frm.grid_columnconfigure(0, weight=1, minsize=100)  # Smaller column 0
-    act_frm.grid_columnconfigure(1, weight=2)  # Larger column 1
-    act_frm.grid_columnconfigure(2, weight=2)  # Larger column 2
+    act_frm.grid_columnconfigure(0, weight=1)
     act_lbl = ttk.Label(act_frm, text='App Activated')
-    act_lbl.grid(row=0, column=0, columnspan=3, padx=5, pady=5)
-    ttk.Label(act_frm, text='Serial Key', style='WARNING.TLabel', width=5).grid(row=1, column=0, padx=5, pady=5, sticky='w')
-    sk_entry = ttk.Entry(act_frm, width=20)
-    sk_entry.grid(row=1, column=1, columnspan=2, padx=5, pady=5, sticky='ew')  # Spans columns 1 and 2
-    ttk.Button(act_frm, text="Back", command=show_settings, bootstyle='secondary').grid(row=2, column=0, columnspan=3, padx=5, pady=5)
+    act_lbl.grid(row=0, column=0, padx=5, pady=5)
+    ttk.Label(act_frm, text='Serial Key').grid(row=1, column=0, padx=5, pady=5)
+    sk_entry = ttk.Entry(act_frm)
+    sk_entry.grid(row=2, column=0, padx=5, pady=5)
+    ttk.Button(act_frm, text="Back", command=show_settings, bootstyle=SECONDARY).grid(row=3, column=0, padx=2)
     
     sequence_frame = ttk.Frame(root)
     sequence_title_frame = ttk.Frame(sequence_frame)
@@ -840,7 +823,9 @@ def create_gui():
     keyboard_listener = keyboard.Listener(on_press=on_press, on_release=on_release)
     mouse_listener.start()
     keyboard_listener.start()
+
     
+        
     start_key_listener()
     load_keybinds_from_file()
     check_for_triggers()
@@ -861,7 +846,7 @@ def create_gui():
     
     root.attributes('-topmost', True)
     root.after(100, lambda: root.attributes('-topmost', False))
-    on_start_app(window_w, window_h)
+    hide_to_tray()
     root.mainloop()
 
 if __name__ == "__main__":
