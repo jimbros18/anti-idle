@@ -79,10 +79,9 @@ SPECIAL_KEYS = {k.name: k for k in [
 
 # Default keybinds (matching key_listener.py)
 DEFAULT_KEYBINDS = {
-    "start_record": ["shift_l", "s"],
-    "stop_record": ["shift_l", "p"],
-    "play_task": ["shift_l", "r"],
-    "end_task": ["shift_l", "q"]
+    "start_record": ["shift_l", "r"],
+    "stop": ["shift_l", "q"],
+    "play_task": ["shift_l", "s"]
 }
 
 # File to store keybinds
@@ -114,7 +113,7 @@ def on_release(key):
         events.append(('key_release', key, time.time()))
 
 # ============================== Record and playback functions ===================================
-def start_recording():
+def start_recording(event=None):
     global recording, current_sequence_name
     if not recording:
         current_sequence_name = "Untitled"
@@ -123,8 +122,16 @@ def start_recording():
         status_var.set("Recording started...")
         print("start_recording executed")
 
-def stop_recording():
-    global recording
+def stop(event=None):
+    global looping, recording
+    # Call end_task
+    looping = False
+    status_var.set("Event stopped.")
+    for key in [Key.shift_l, Key.shift_r, Key.ctrl_l, Key.ctrl_r, Key.alt_l, Key.alt_r]:
+        keyboard_ctrl.release(key)
+    print("end_task executed")
+    
+    # Call stop_recording
     if recording:
         recording = False
         if events:
@@ -185,23 +192,16 @@ def loop_playback():
                 time.sleep(min(0.1, LOOP_INTERVAL - elapsed))
                 elapsed += 0.1
             print(f"Loop interval completed: {LOOP_INTERVAL}s")
-    status_var.set("Task stopped.")
+    status_var.set("Event stopped.")
     playing = False
     print("loop_playback stopped")
 
-def play_task():
+def play_task(event=None):
     if not looping and events:
         status_var.set("Starting loop...")
         print("play_task executed")
         threading.Thread(target=loop_playback, daemon=True).start()
 
-def end_task():
-    global looping
-    looping = False
-    status_var.set("Stopping task...")
-    for key in [Key.shift_l, Key.shift_r, Key.ctrl_l, Key.ctrl_r, Key.alt_l, Key.alt_r]:
-        keyboard_ctrl.release(key)
-    print("end_task executed")
 
 # ========================== File operations for sequences =======================================================
 def save_sequence():
@@ -244,19 +244,19 @@ def save_sequence():
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save sequence: {e}")
 
-# def load_sequence():
-#     global events, current_sequence_name
-#     if not os.path.exists(default_save_dir):
-#         os.makedirs(default_save_dir)
-#     file_path = filedialog.askopenfilename(initialdir=default_save_dir, title="Load Sequence", filetypes=(("Sequence files", "*.seq"), ("All files", "*.*")))
-#     if file_path:
-#         try:
-#             with open(file_path, 'rb') as f:
-#                 events = pickle.load(f)
-#             current_sequence_name = os.path.basename(file_path)
-#             status_var.set(f"Loaded: {current_sequence_name} ({len(events)} events)")
-#         except Exception as e:
-#             messagebox.showerror("Error", f"Failed to load sequence: {e}")
+def load_sequence(event=None):
+    global events, current_sequence_name
+    if not os.path.exists(default_save_dir):
+        os.makedirs(default_save_dir)
+    file_path = filedialog.askopenfilename(initialdir=default_save_dir, title="Load Sequence", filetypes=(("Sequence files", "*.seq"), ("All files", "*.*")))
+    if file_path:
+        try:
+            with open(file_path, 'rb') as f:
+                events = pickle.load(f)
+            current_sequence_name = os.path.basename(file_path)
+            status_var.set(f"Loaded: {current_sequence_name} ({len(events)} events)")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load sequence: {e}")
 
 def ask_to_save():
     if messagebox.askyesno("Save Sequence", "Do you want to save this sequence?"):
@@ -299,6 +299,11 @@ def create_sequence_item(parent, filename):
 
 def load_specific_sequence(filename):
     global events, current_sequence_name
+    # Ensure filename is a string (in case an Event object is passed)
+    if not isinstance(filename, str):
+        messagebox.showerror("Error", "Invalid filename provided")
+        return
+    
     file_path = os.path.join(default_save_dir, filename)
     if os.path.exists(file_path):
         try:
@@ -441,6 +446,41 @@ def update_keybind_labels():
                     keybind_label.config(text=f"{modifier}+{key}")
 
 # =============================== Window management =====================================
+
+def on_start_app():
+    global root, icon
+    # Get screen and window dimensions
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    window_width = 200
+    window_height = 255
+    x = (screen_width - window_width) // 2
+    y = (screen_height - window_height) // 2
+
+    # Initialize the window at the center
+    root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+    root.attributes('-topmost', True)
+    root.update()
+    root.attributes('-topmost', False)
+    root.lift()
+
+    # Create system tray icon
+    try:
+        image = Image.open("client/assets/icon.png")
+    except FileNotFoundError:
+        image = Image.new('RGB', (16, 16), color=(0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((4, 4, 12, 12), fill=(255, 255, 255))
+        print("Warning: icon.png not found, using fallback icon")
+
+    icon = pystray.Icon("Recorder", image, "Action Recorder", menu=pystray.Menu(
+        item('Restore', lambda: show_app(icon)),  # Pass icon to show_app
+        item('Hide', lambda: root.withdraw()),    # Hide window without creating new icon
+        item('Quit', lambda: close_app())
+    ))
+    threading.Thread(target=icon.run, daemon=True).start()
+    print("App started with tray icon")
+
 def start_drag(event):
     root.x = event.x
     root.y = event.y
@@ -452,56 +492,28 @@ def drag_window(event):
     y = root.winfo_y() + deltay
     root.geometry(f"+{x}+{y}")
 
-# icon = None
 def hide_to_tray():
-    global icon
-    # If an icon already exists, stop it to prevent duplicates
-    if icon is not None:
-        try:
-            icon.stop()
-            icon = None
-            print("Existing tray icon stopped")
-        except Exception as e:
-            print(f"Error stopping existing tray icon: {e}")
-    
-    root.withdraw()  # Hide the window to start in system tray
-    try:
-        # Try loading a custom icon (ensure the path is correct)
-        image = Image.open("client/assets/icon.png")  # Updated path as per your code
-    except FileNotFoundError:
-        # Fallback to a simple black-and-white square if icon.png is missing
-        image = Image.new('RGB', (16, 16), color=(0, 0, 0))
-        draw = ImageDraw.Draw(image)
-        draw.rectangle((4, 4, 12, 12), fill=(255, 255, 255))
-        print("Warning: icon.png not found, using fallback icon")
-    
-    # Create a new tray icon with proper callbacks
-    icon = pystray.Icon("Recorder", image, "Action Recorder", menu=pystray.Menu(
-        item('Restore', lambda: show_app()),  # Use lambda to defer execution
-        item('Quit', lambda: close_app())     # Use lambda to defer execution
-    ))
-    threading.Thread(target=icon.run, daemon=True).start()
-    print("Hidden to tray with new icon")
+    root.withdraw()
+    print("Window hidden to tray")
 
 def show_app(icon=None):
-    global  root
-    # Restore the window
+    global root
+    # Get screen and window dimensions
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    window_width = 200
+    window_height = 255
+    x = (screen_width - window_width) // 2
+    y = (screen_height - window_height) // 2
+
     root.deiconify()
-    root.geometry("200x255+100+100")
+    root.geometry(f"{window_width}x{window_height}+{x}+{y}")
     root.attributes('-topmost', True)
     root.update()
     root.attributes('-topmost', False)
     root.lift()
-    
-    # Stop the tray icon to remove it from the system tray
-    if icon is not None:
-        try:
-            icon.stop()
-            icon = None
-            print("Tray icon stopped on restore")
-        except Exception as e:
-            print(f"Error stopping tray icon on restore: {e}")
     print("Restored window")
+
 
 def close_app():
     global looping, icon, mouse_listener, keyboard_listener
@@ -537,7 +549,7 @@ def check_for_triggers():
         root.after(100, check_for_triggers)
         return
     # print("Checking triggers...")
-    for command in ["start_recording", "stop_recording", "play_task", "end_task"]:
+    for command in ["start_recording", "stop", "play_task"]:
         trigger_file = f"{command}.trigger"
         if os.path.exists(trigger_file):
             print(f"Trigger file found: {trigger_file}")
@@ -675,45 +687,62 @@ def create_gui():
     btn_frame.pack(pady=5)
 
 #=====================================================================================
-    btn_frame = None
-
-    # def on_label_click(label_key):
-    #     for lbl in labels.values():
-    #         lbl.configure(style="TLabel")
-    #     labels[label_key].configure(style="Active.TLabel")
-    #     actions[label_key]()
-
-    # def on_hover_enter(e):
-    #     e.widget.configure(style="Hover.TLabel")
-
-    # def on_hover_leave(e):
-    #     if e.widget != active_label:
-    #         e.widget.configure(style="TLabel")
-
-    # Actions
-    def start_recording(): print("Recording started.")
-    def stop_recording(): print("Recording stopped.")
-    def play_task(): print("Task started.")
-    def end_task(): print("Task ended.")
 
     # Styles
     style = ttk.Style()
-    style.configure("TLabel", padding=10)
-    style.configure("Hover.TLabel", background="#666", foreground="white", padding=10)
-    style.configure("Active.TLabel", background="#5bc0de", foreground="white", padding=10, relief="groove")
+    style.configure("TLabel")  # Default style
+    style.configure("Hover.TLabel", background="#5cc977")  # Hover style (same background, icon will change)
+    style.configure("Active.TLabel", background="#1f1f1f")  # Active style (same background, icon will change)
+
+    labels = {}  # Maps key to ttk.Label widget
+    actions = {}  # Maps key to function to call on click
+    active_label = None  # Tracks the currently active label
+
+    # Define event handlers
+    def on_label_click(label_key):
+        global active_label
+        for key, lbl in labels.items():
+            lbl.configure(style="TLabel", image=def_icons[key])  # Reset to default icon
+        # Set active icon if available, otherwise keep default
+        active_image = active_icons.get(label_key, def_icons[label_key])
+        labels[label_key].configure(style="Active.TLabel", image=active_image)
+        active_label = labels[label_key]
+        actions[label_key]()
+
+    def on_hover_enter(e):
+        if e.widget != active_label:
+            # Find the key for this widget
+            for key, lbl in labels.items():
+                if lbl == e.widget:
+                    # Use active icon for hover if available, otherwise keep default
+                    hover_image = active_icons.get(key, def_icons[key])
+                    e.widget.configure(style="Hover.TLabel", image=hover_image)
+                    break
+
+    def on_hover_leave(e):
+        if e.widget != active_label:
+            # Find the key for this widget
+            for key, lbl in labels.items():
+                if lbl == e.widget:
+                    e.widget.configure(style="TLabel", image=def_icons[key])
+                    break
 
     def iconizer(image_path, size):
         size = (size, size)
         image = Image.open(image_path).resize(size, Image.LANCZOS)
         return ImageTk.PhotoImage(image)
 
-    icons = {
-    "rec": iconizer("client/assets/record.png", 20),
-    "stop": iconizer("client/assets/stop.png", 20),
-    "play": iconizer("client/assets/play.png", 20),
-    "end": iconizer("client/assets/pause.png", 20),
-    "save": iconizer("client/assets/save.png", 20),
-    "load": iconizer("client/assets/folder.png", 20)
+    def_icons = {
+        "record": iconizer("client/assets/record.png", 40),
+        "stop": iconizer("client/assets/stop.png", 40),
+        "play": iconizer("client/assets/play.png", 40),
+        "load": iconizer("client/assets/folder.png", 40)
+    }
+
+    active_icons = {
+        "record": iconizer("client/assets/active_rec.png", 40),
+        "stop": iconizer("client/assets/active_stop.png", 40),
+        "play": iconizer("client/assets/active_play.png", 40)
     }
 
     @dataclass
@@ -723,11 +752,10 @@ def create_gui():
         tooltip: str
 
     btns = {
-        'record': btn_con(icons["rec"],start_recording(), 'Record'),
-        'stop': btn_con(icons['stop'], stop_recording(), 'stop'),
-        'play': btn_con(icons["play"], play_task(), 'play' ),
-        'end': btn_con(icons["end"], end_task(), 'end'),
-        'load': btn_con(icons["load"], load_specific_sequence, 'import')
+        'record': btn_con(def_icons["record"], start_recording, 'Record'),
+        'stop': btn_con(def_icons['stop'], stop, 'stop'),
+        'play': btn_con(def_icons["play"], play_task, 'play'),
+        'load': btn_con(def_icons["load"], load_sequence, 'import')
     }
 
     # Row 1 frame
@@ -735,19 +763,28 @@ def create_gui():
     row1.pack()
     for key in ['record', 'stop']:
         config = btns[key]
-        btn = ttk.Button(row1, text=key.capitalize(), image=config.icon, command=config.func)
-        btn.pack(side="left", padx=5, pady=5)
+        btn = ttk.Label(row1, image=config.icon)  # Changed style from PRIMARY to TLabel
+        btn.pack(side="left", padx=1, pady=1)
+        labels[key] = btn
+        actions[key] = config.func
+        btn.bind("<Button-1>", lambda e, k=key: on_label_click(k))  # Bind click to on_label_click
+        btn.bind("<Enter>", on_hover_enter)  # Bind hover enter
+        btn.bind("<Leave>", on_hover_leave)  # Bind hover leave
         ToolTip(btn, config.tooltip)
 
     # Row 2 frame
     row2 = ttk.Frame(main_frame)
     row2.pack()
-    for key in ['play', 'end']:
+    for key in ['play', 'load']:
         config = btns[key]
-        btn = ttk.Button(row2, text=key.capitalize(), image=config.icon, command=config.func)
-        btn.pack(side="left", padx=5, pady=5)
+        btn = ttk.Label(row2, image=config.icon)  # Changed style from PRIMARY to TLabel
+        btn.pack(side="left", padx=1, pady=1)
+        labels[key] = btn
+        actions[key] = config.func
+        btn.bind("<Button-1>", lambda e, k=key: on_label_click(k))  # Bind click to on_label_click
+        btn.bind("<Enter>", on_hover_enter)  # Bind hover enter
+        btn.bind("<Leave>", on_hover_leave)  # Bind hover leave
         ToolTip(btn, config.tooltip)
-
 #==========================================================
 
     # ttk.Button(btn_frame, text="Start Rec", image=start, command=start_recording, bootstyle=SUCCESS).grid(row=0, column=0, padx=5, pady=5)
@@ -773,9 +810,8 @@ def create_gui():
     
     action_labels = {
         "start_record": "Start:",
-        "stop_record": "Stop:",
+        "stop": "Stop:",
         "play_task": "Task:",
-        "end_task": "End:"
     }
 
     for action, (modifier, key) in keybinds.items():
@@ -847,7 +883,7 @@ def create_gui():
     
     root.attributes('-topmost', True)
     root.after(100, lambda: root.attributes('-topmost', False))
-    # hide_to_tray()
+    on_start_app()
     root.mainloop()
 
 if __name__ == "__main__":
